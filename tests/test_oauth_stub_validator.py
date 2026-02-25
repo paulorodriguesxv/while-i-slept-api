@@ -30,4 +30,4 @@ def test_non_stub_token_is_rejected_when_insecure_mode_disabled() -> None:
         validator.validate(provider="apple", id_token="real-provider-token")
 
     assert exc_info.value.status_code == 401
-    assert exc_info.value.code == "UNAUTHORIZED"
+    assert exc_info.value.code == "INVALID_PROVIDER_TOKEN"

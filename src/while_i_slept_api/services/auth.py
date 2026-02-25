@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
-from while_i_slept_api.api.errors import ApiError
-from while_i_slept_api.domain.models import EntitlementState, UserProfile
-from while_i_slept_api.repositories.base import UserRepository
-from while_i_slept_api.services.oauth import OAuthTokenValidator
+from typing import Protocol
+
+from while_i_slept_api.domain.models import OAuthIdentity, UserProfile
+from while_i_slept_api.services.oauth import OAuthVerifier
 from while_i_slept_api.services.tokens import TokenService
-from while_i_slept_api.services.utils import iso_now, new_user_id
+
+
+class UserAccountService(Protocol):
+    """Auth-facing user operations used by the authentication flow."""
+
+    def get_or_create_from_oauth_identity(self, identity: OAuthIdentity) -> UserProfile:
+        ...
+
+    def get_required(self, user_id: str, *, status_code: int = 404) -> UserProfile:
+        ...
 
 
 class AuthService:
@@ -15,36 +24,19 @@ class AuthService:
 
     def __init__(
         self,
-        users: UserRepository,
+        user_service: UserAccountService,
         token_service: TokenService,
-        oauth_validator: OAuthTokenValidator,
+        oauth_verifier: OAuthVerifier,
     ) -> None:
-        self._users = users
+        self._user_service = user_service
         self._token_service = token_service
-        self._oauth_validator = oauth_validator
+        self._oauth_verifier = oauth_verifier
 
     def exchange_oauth(self, *, provider: str, id_token: str) -> tuple[str, str, int, UserProfile]:
         """Validate provider token, create user if needed, and issue JWT tokens."""
 
-        identity = self._oauth_validator.validate(provider=provider, id_token=id_token)  # type: ignore[arg-type]
-        user = self._users.get_by_provider_identity(identity.provider, identity.provider_user_id)
-        now = iso_now()
-        if user is None:
-            user = UserProfile(
-                user_id=new_user_id(),
-                provider=identity.provider,
-                provider_user_id=identity.provider_user_id,
-                email=identity.email,
-                name=identity.name,
-                entitlements=EntitlementState(),
-                created_at=now,
-                updated_at=now,
-            )
-        else:
-            user.email = identity.email or user.email
-            user.name = identity.name or user.name
-            user.updated_at = now
-        user = self._users.save(user)
+        identity = self._oauth_verifier.validate(provider=provider, id_token=id_token)  # type: ignore[arg-type]
+        user = self._user_service.get_or_create_from_oauth_identity(identity)
         access_token = self._token_service.issue_access_token(user.user_id)
         refresh_token = self._token_service.issue_refresh_token(user.user_id)
         return access_token, refresh_token, self._token_service.access_ttl_seconds, user
@@ -53,8 +45,9 @@ class AuthService:
         """Issue a new access token from a valid refresh token."""
 
         user_id = self._token_service.validate_refresh_token(refresh_token)
-        user = self._users.get_by_id(user_id)
-        if user is None:
-            raise ApiError(status_code=401, code="UNAUTHORIZED", message="Invalid refresh token.")
+        user = self._user_service.get_required(
+            user_id,
+            status_code=401,
+        )
         access_token = self._token_service.issue_access_token(user.user_id)
         return access_token, self._token_service.access_ttl_seconds

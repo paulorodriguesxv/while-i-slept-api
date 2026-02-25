@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from while_i_slept_api.domain.models import DeviceRegistration, SleepWindow, UserProfile
+from while_i_slept_api.domain.models import DeviceRegistration, EntitlementState, OAuthIdentity, SleepWindow, UserProfile
 from while_i_slept_api.repositories.base import DeviceRepository, UserRepository
-from while_i_slept_api.services.utils import iso_now
+from while_i_slept_api.services.utils import iso_now, new_user_id
+from while_i_slept_api.services.auth_errors import UserNotFoundError
 
 
 class UserService:
@@ -21,6 +22,42 @@ class UserService:
         """Return the latest user profile from storage."""
 
         return self._users.get_by_id(user.user_id) or user
+
+    def get_by_id(self, user_id: str) -> UserProfile | None:
+        """Lookup a user by id."""
+
+        return self._users.get_by_id(user_id)
+
+    def get_required(self, user_id: str, *, status_code: int = 404) -> UserProfile:
+        """Lookup a user by id and raise a typed error when missing."""
+
+        user = self._users.get_by_id(user_id)
+        if user is None:
+            raise UserNotFoundError(status_code=status_code)
+        return user
+
+    def get_or_create_from_oauth_identity(self, identity: OAuthIdentity) -> UserProfile:
+        """Find or create a user record from a verified provider identity."""
+
+        user = self._users.get_by_provider_identity(identity.provider, identity.provider_user_id)
+        now = iso_now()
+        if user is None:
+            created = UserProfile(
+                user_id=new_user_id(),
+                provider=identity.provider,
+                provider_user_id=identity.provider_user_id,
+                email=identity.email,
+                name=identity.name,
+                entitlements=EntitlementState(),
+                created_at=now,
+                updated_at=now,
+            )
+            return self._users.save(created)
+
+        user.email = identity.email or user.email
+        user.name = identity.name or user.name
+        user.updated_at = now
+        return self._users.save(user)
 
     def update_preferences(
         self,

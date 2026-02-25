@@ -26,7 +26,7 @@ from while_i_slept_api.repositories.memory import (
 from while_i_slept_api.services.auth import AuthService
 from while_i_slept_api.services.briefings import BriefingService
 from while_i_slept_api.services.entitlements import EntitlementService
-from while_i_slept_api.services.oauth import OAuthTokenValidator
+from while_i_slept_api.services.oauth import OAuthVerifier
 from while_i_slept_api.services.revenuecat import RevenueCatService
 from while_i_slept_api.services.tokens import TokenService
 from while_i_slept_api.services.users import UserService
@@ -74,26 +74,16 @@ def get_token_service() -> TokenService:
 
 
 @lru_cache(maxsize=1)
-def get_oauth_validator_cached() -> OAuthTokenValidator:
-    """Build and cache OAuth token validator."""
+def get_oauth_verifier_cached() -> OAuthVerifier:
+    """Build and cache OAuth verifier."""
 
-    return OAuthTokenValidator(get_settings())
-
-
-def get_oauth_validator() -> OAuthTokenValidator:
-    """Dependency wrapper for OAuth validator."""
-
-    return get_oauth_validator_cached()
+    return OAuthVerifier(get_settings())
 
 
-def get_auth_service(
-    repos: Annotated[RepositoryBundle, Depends(get_repositories)],
-    token_service: Annotated[TokenService, Depends(get_token_service)],
-    oauth_validator: Annotated[OAuthTokenValidator, Depends(get_oauth_validator)],
-) -> AuthService:
-    """Build auth service."""
+def get_oauth_verifier() -> OAuthVerifier:
+    """Dependency wrapper for OAuth verifier."""
 
-    return AuthService(repos.users, token_service, oauth_validator)
+    return get_oauth_verifier_cached()
 
 
 @lru_cache(maxsize=1)
@@ -118,6 +108,16 @@ def get_user_service(
     return UserService(repos.users, repos.devices, settings.timezone_default)
 
 
+def get_auth_service(
+    user_service: Annotated[UserService, Depends(get_user_service)],
+    token_service: Annotated[TokenService, Depends(get_token_service)],
+    oauth_verifier: Annotated[OAuthVerifier, Depends(get_oauth_verifier)],
+) -> AuthService:
+    """Build auth service."""
+
+    return AuthService(user_service, token_service, oauth_verifier)
+
+
 def get_briefing_service(
     repos: Annotated[RepositoryBundle, Depends(get_repositories)],
     entitlements: Annotated[EntitlementService, Depends(get_entitlement_service)],
@@ -139,14 +139,11 @@ def get_revenuecat_service(
 def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     token_service: Annotated[TokenService, Depends(get_token_service)],
-    repos: Annotated[RepositoryBundle, Depends(get_repositories)],
+    user_service: Annotated[UserService, Depends(get_user_service)],
 ) -> UserProfile:
     """Authenticate request and load current user."""
 
     if credentials is None or not credentials.credentials:
         raise ApiError(status_code=401, code="UNAUTHORIZED", message="Missing access token.")
     user_id = token_service.validate_access_token(credentials.credentials)
-    user = repos.users.get_by_id(user_id)
-    if user is None:
-        raise ApiError(status_code=401, code="UNAUTHORIZED", message="Invalid token.")
-    return user
+    return user_service.get_required(user_id, status_code=401)

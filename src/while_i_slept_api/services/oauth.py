@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
-from while_i_slept_api.api.errors import ApiError
 from while_i_slept_api.core.config import Settings
 from while_i_slept_api.domain.models import OAuthIdentity, Provider
+from while_i_slept_api.services.auth_errors import InvalidProviderTokenError
 
 
 @dataclass(slots=True)
@@ -19,7 +19,7 @@ class StubTokenPayload:
     name: str | None
 
 
-class OAuthTokenValidator:
+class OAuthVerifier:
     """Validates provider id_tokens.
 
     Production signature validation is intentionally separated so the MVP can
@@ -50,22 +50,22 @@ class OAuthTokenValidator:
                 name=None,
             )
 
-        raise ApiError(
-            status_code=401,
-            code="UNAUTHORIZED",
-            message="Invalid provider token.",
-        )
+        raise InvalidProviderTokenError()
 
     def _parse_stub_token(self, token: str) -> StubTokenPayload:
         """Parse `stub:<sub>|<email>|<name>` token format."""
 
         _, _, body = token.partition(":")
         if not body:
-            raise ApiError(status_code=401, code="UNAUTHORIZED", message="Invalid provider token.")
+            raise InvalidProviderTokenError()
         parts = body.split("|")
         if len(parts) < 1 or not parts[0]:
-            raise ApiError(status_code=401, code="UNAUTHORIZED", message="Invalid provider token.")
+            raise InvalidProviderTokenError()
         sub = parts[0]
         email = parts[1] if len(parts) > 1 and parts[1] else None
         name = parts[2] if len(parts) > 2 and parts[2] else None
         return StubTokenPayload(sub=sub, email=email, name=name)
+
+
+# Backward-compatible alias used by existing imports/tests.
+OAuthTokenValidator = OAuthVerifier
