@@ -37,17 +37,17 @@ class AuthService:
 
         identity = self._oauth_verifier.validate(provider=provider, id_token=id_token)  # type: ignore[arg-type]
         user = self._user_service.get_or_create_from_oauth_identity(identity)
-        access_token = self._token_service.issue_access_token(user.user_id)
-        refresh_token = self._token_service.issue_refresh_token(user.user_id)
+        access_token = self._token_service.create_access_token(user.user_id)
+        refresh_token = self._token_service.create_refresh_token(user.user_id)
         return access_token, refresh_token, self._token_service.access_ttl_seconds, user
 
     def refresh_access(self, refresh_token: str) -> tuple[str, int]:
         """Issue a new access token from a valid refresh token."""
 
-        user_id = self._token_service.validate_refresh_token(refresh_token)
+        user_id = self._token_service.verify_refresh_token(refresh_token)
         user = self._user_service.get_required(
             user_id,
             status_code=401,
         )
-        access_token = self._token_service.issue_access_token(user.user_id)
+        access_token = self._token_service.create_access_token(user.user_id)
         return access_token, self._token_service.access_ttl_seconds

@@ -145,5 +145,5 @@ def get_current_user(
 
     if credentials is None or not credentials.credentials:
         raise ApiError(status_code=401, code="UNAUTHORIZED", message="Missing access token.")
-    user_id = token_service.validate_access_token(credentials.credentials)
+    user_id = token_service.verify_access_token(credentials.credentials)
     return user_service.get_required(user_id, status_code=401)

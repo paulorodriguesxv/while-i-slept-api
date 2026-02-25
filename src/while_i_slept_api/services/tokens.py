@@ -14,6 +14,7 @@ from while_i_slept_api.services.auth_errors import (
     ExpiredAccessTokenError,
     InvalidAccessTokenError,
     InvalidRefreshTokenError,
+    InvalidTokenTypeError,
 )
 from while_i_slept_api.services.utils import new_jti
 
@@ -35,7 +36,11 @@ class TokenService:
     """Issues and validates JWT access and refresh tokens."""
 
     def __init__(self, settings: Settings) -> None:
+        if not settings.jwt_secret:
+            raise ValueError("APP_JWT_SECRET is required for JWT signing.")
         self._settings = settings
+        self._secret = settings.jwt_secret
+        self._algorithm = settings.jwt_algorithm
 
     @property
     def access_ttl_seconds(self) -> int:
@@ -43,25 +48,46 @@ class TokenService:
 
         return self._settings.access_token_ttl_seconds
 
-    def issue_access_token(self, user_id: str) -> str:
-        """Issue a signed access token."""
+    def create_access_token(self, user_id: str) -> str:
+        """Create a signed access token."""
 
         return self._encode(user_id=user_id, kind="access", ttl_seconds=self._settings.access_token_ttl_seconds)
 
-    def issue_refresh_token(self, user_id: str) -> str:
-        """Issue a signed refresh token."""
+    def create_refresh_token(self, user_id: str) -> str:
+        """Create a signed refresh token."""
 
         return self._encode(user_id=user_id, kind="refresh", ttl_seconds=self._settings.refresh_token_ttl_seconds)
 
-    def validate_access_token(self, token: str) -> str:
-        """Return the user id encoded in a valid access token."""
+    def verify_access_token(self, token: str) -> str:
+        """Verify an access token and return its user id."""
 
         return self.decode_access_token(token).user_id
 
-    def validate_refresh_token(self, token: str) -> str:
-        """Return the user id encoded in a valid refresh token."""
+    def verify_refresh_token(self, token: str) -> str:
+        """Verify a refresh token and return its user id."""
 
         return self.decode_refresh_token(token).user_id
+
+    # Backward-compatible aliases for existing callers while the codebase migrates.
+    def issue_access_token(self, user_id: str) -> str:
+        """Alias for create_access_token."""
+
+        return self.create_access_token(user_id)
+
+    def issue_refresh_token(self, user_id: str) -> str:
+        """Alias for create_refresh_token."""
+
+        return self.create_refresh_token(user_id)
+
+    def validate_access_token(self, token: str) -> str:
+        """Alias for verify_access_token."""
+
+        return self.verify_access_token(token)
+
+    def validate_refresh_token(self, token: str) -> str:
+        """Alias for verify_refresh_token."""
+
+        return self.verify_refresh_token(token)
 
     def decode_access_token(self, token: str) -> TokenClaims:
         """Decode and validate an access token, returning typed claims."""
@@ -82,14 +108,14 @@ class TokenService:
             "exp": int((now + timedelta(seconds=ttl_seconds)).timestamp()),
             "jti": new_jti(),
         }
-        return jwt.encode(payload, self._settings.jwt_secret, algorithm=self._settings.jwt_algorithm)
+        return jwt.encode(payload, self._secret, algorithm=self._algorithm)
 
     def _decode_claims(self, *, token: str, expected_kind: TokenKind) -> TokenClaims:
         try:
             payload = jwt.decode(
                 token,
-                self._settings.jwt_secret,
-                algorithms=[self._settings.jwt_algorithm],
+                self._secret,
+                algorithms=[self._algorithm],
             )
         except ExpiredSignatureError as exc:
             if expected_kind == "access":
@@ -104,9 +130,14 @@ class TokenService:
         issued_at = payload.get("iat")
         expires_at = payload.get("exp")
         jwt_id = payload.get("jti")
+        if not isinstance(kind, str):
+            if expected_kind == "access":
+                raise InvalidAccessTokenError()
+            raise InvalidRefreshTokenError()
+        if kind != expected_kind:
+            raise InvalidTokenTypeError(expected=expected_kind, actual=kind)
         if (
-            kind != expected_kind
-            or not isinstance(subject, str)
+            not isinstance(subject, str)
             or not subject
             or not isinstance(issued_at, int)
             or not isinstance(expires_at, int)

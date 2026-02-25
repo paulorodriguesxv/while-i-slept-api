@@ -31,6 +31,6 @@ def test_exchange_flow_with_stub_provider_creates_user_and_tokens() -> None:
     assert user.email == "user@example.com"
     assert user.name == "Paulo"
     assert expires_in == 3600
-    assert token_service.validate_access_token(access_token) == user.user_id
-    assert token_service.validate_refresh_token(refresh_token) == user.user_id
+    assert token_service.verify_access_token(access_token) == user.user_id
+    assert token_service.verify_refresh_token(refresh_token) == user.user_id
     assert user_repo.get_by_id(user.user_id) is not None

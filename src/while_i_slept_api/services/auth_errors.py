@@ -49,6 +49,21 @@ class InvalidRefreshTokenError(ApiError):
         )
 
 
+class InvalidTokenTypeError(ApiError):
+    """Raised when a JWT is valid but not the expected access/refresh type."""
+
+    def __init__(self, *, expected: str, actual: str | None = None) -> None:
+        details = {"expected": expected}
+        if actual is not None:
+            details["actual"] = actual
+        super().__init__(
+            status_code=401,
+            code="INVALID_TOKEN_TYPE",
+            message="Invalid token type.",
+            details=details,
+        )
+
+
 class UserNotFoundError(ApiError):
     """Raised when a referenced user record does not exist."""
 

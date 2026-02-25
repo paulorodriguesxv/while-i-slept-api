@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     storage_backend: str = "memory"
     timezone_default: str = "America/Sao_Paulo"
 
-    jwt_secret: str = "change-me"
+    jwt_secret: str | None = None
     jwt_algorithm: str = "HS256"
     access_token_ttl_seconds: int = 3600
     refresh_token_ttl_seconds: int = 60 * 60 * 24 * 30
