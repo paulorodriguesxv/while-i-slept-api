@@ -1,0 +1,38 @@
+services:
+  localstack:
+    image: localstack/localstack:latest
+    environment:
+      SERVICES: dynamodb
+      EDGE_PORT: "4566"
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./.localstack:/var/lib/localstack
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "8123:8000"
+    depends_on:
+      - localstack
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    working_dir: /app
+    volumes:
+      - ./:/app
+    depends_on:
+      - localstack
+    command: ["sh", "-lc", "python scripts/create_tables.py && pytest -q"]
