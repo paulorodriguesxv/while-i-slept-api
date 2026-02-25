@@ -1,0 +1,580 @@
+openapi: 3.1.0
+info:
+  title: What Happened While I Slept API
+  version: 0.1.0
+  description: MVP API for daily news briefings, social login, onboarding, and subscription entitlements.
+servers:
+  - url: http://localhost:8000
+tags:
+  - name: Auth
+  - name: Me
+  - name: Briefings
+  - name: Webhooks
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              examples: ["UNAUTHORIZED", "FORBIDDEN", "VALIDATION_ERROR"]
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+
+    Provider:
+      type: string
+      enum: [apple, google]
+
+    Platform:
+      type: string
+      enum: [ios, android]
+
+    Language:
+      type: string
+      enum: [pt, en]
+
+    SleepWindow:
+      type: object
+      required: [start, end, timezone]
+      properties:
+        start:
+          type: string
+          description: "HH:MM"
+          examples: ["23:00"]
+        end:
+          type: string
+          description: "HH:MM"
+          examples: ["07:00"]
+        timezone:
+          type: string
+          description: IANA timezone
+          examples: ["America/Sao_Paulo"]
+
+    Entitlements:
+      type: object
+      required: [premium]
+      properties:
+        premium:
+          type: boolean
+        expires_at:
+          type: string
+          nullable: true
+          description: ISO-8601 UTC timestamp
+          examples: ["2026-03-03T12:00:00Z"]
+        product_id:
+          type: string
+          nullable: true
+          examples: ["monthly_premium"]
+        store:
+          type: string
+          nullable: true
+          enum: [apple, google, null]
+
+    Me:
+      type: object
+      required:
+        - id
+        - onboarding_completed
+        - accepted_terms
+        - accepted_privacy
+        - entitlements
+      properties:
+        id:
+          type: string
+          examples: ["usr_123"]
+        email:
+          type: string
+          nullable: true
+          examples: ["user@example.com"]
+        name:
+          type: string
+          nullable: true
+          examples: ["Paulo"]
+        lang:
+          $ref: "#/components/schemas/Language"
+          nullable: true
+        sleep_window:
+          $ref: "#/components/schemas/SleepWindow"
+          nullable: true
+        topics:
+          type: array
+          items:
+            type: string
+          nullable: true
+          examples: [["tech", "finance"]]
+        onboarding_completed:
+          type: boolean
+        accepted_terms:
+          type: boolean
+        accepted_privacy:
+          type: boolean
+        entitlements:
+          $ref: "#/components/schemas/Entitlements"
+
+    AuthExchangeRequest:
+      type: object
+      required: [provider, id_token]
+      properties:
+        provider:
+          $ref: "#/components/schemas/Provider"
+        id_token:
+          type: string
+          description: Provider JWT (Apple identityToken or Google idToken)
+        device:
+          type: object
+          additionalProperties: false
+          properties:
+            platform:
+              $ref: "#/components/schemas/Platform"
+            app_version:
+              type: string
+              examples: ["1.0.0"]
+            device_id:
+              type: string
+              examples: ["550e8400-e29b-41d4-a716-446655440000"]
+
+    AuthExchangeResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, me]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          examples: ["bearer"]
+        expires_in:
+          type: integer
+          examples: [3600]
+        me:
+          $ref: "#/components/schemas/Me"
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    RefreshResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          examples: ["bearer"]
+        expires_in:
+          type: integer
+          examples: [3600]
+
+    UpdatePreferencesRequest:
+      type: object
+      required: [lang, sleep_window]
+      properties:
+        lang:
+          $ref: "#/components/schemas/Language"
+        sleep_window:
+          $ref: "#/components/schemas/SleepWindow"
+        topics:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    AcceptLegalRequest:
+      type: object
+      required: [terms_version, privacy_version]
+      properties:
+        terms_version:
+          type: string
+          examples: ["2026-02-25"]
+        privacy_version:
+          type: string
+          examples: ["2026-02-25"]
+
+    AcceptLegalResponse:
+      type: object
+      required: [accepted_terms, accepted_privacy]
+      properties:
+        accepted_terms:
+          type: boolean
+        accepted_privacy:
+          type: boolean
+
+    RegisterDeviceRequest:
+      type: object
+      required: [platform, push_token, device_id]
+      properties:
+        platform:
+          $ref: "#/components/schemas/Platform"
+        push_token:
+          type: string
+        device_id:
+          type: string
+        app_version:
+          type: string
+          nullable: true
+
+    RegisterDeviceResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+
+    BriefingSource:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+          examples: ["BBC"]
+        url:
+          type: string
+          format: uri
+          examples: ["https://example.com/article"]
+
+    BriefingItem:
+      type: object
+      required: [story_id, headline, summary_bullets, score, sources]
+      properties:
+        story_id:
+          type: string
+          examples: ["sty_1"]
+        headline:
+          type: string
+        summary_bullets:
+          type: array
+          items:
+            type: string
+          examples: [["Bullet 1", "Bullet 2"]]
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          examples: [0.82]
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/BriefingSource"
+
+    BriefingWindow:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          description: ISO-8601 timestamp with offset
+          examples: ["2026-02-24T23:00:00-03:00"]
+        end:
+          type: string
+          examples: ["2026-02-25T07:00:00-03:00"]
+
+    BriefingLimits:
+      type: object
+      required: [max_items, is_premium]
+      properties:
+        max_items:
+          type: integer
+          examples: [5]
+        is_premium:
+          type: boolean
+
+    BriefingResponse:
+      type: object
+      required: [date, window, lang, items, limits]
+      properties:
+        date:
+          type: string
+          examples: ["2026-02-25"]
+        window:
+          $ref: "#/components/schemas/BriefingWindow"
+        lang:
+          $ref: "#/components/schemas/Language"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BriefingItem"
+        limits:
+          $ref: "#/components/schemas/BriefingLimits"
+
+    RevenueCatWebhookEvent:
+      type: object
+      description: RevenueCat webhook payload (stored/parsed by backend). Kept flexible for MVP.
+      additionalProperties: true
+
+paths:
+  /auth/oauth/exchange:
+    post:
+      tags: [Auth]
+      summary: Exchange provider id_token for backend JWT tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthExchangeRequest"
+            examples:
+              apple:
+                value:
+                  provider: apple
+                  id_token: "eyJhbGciOi..."
+                  device:
+                    platform: ios
+                    app_version: "1.0.0"
+                    device_id: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        "200":
+          description: Tokens issued, user created if first login.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthExchangeResponse"
+        "401":
+          description: Invalid provider token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token using refresh token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New access token issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "401":
+          description: Invalid refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /me:
+    get:
+      tags: [Me]
+      summary: Get current user profile, flags, and entitlements.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user info.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: Missing/invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /me/preferences:
+    put:
+      tags: [Me]
+      summary: Update onboarding preferences (language + sleep window + topics).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePreferencesRequest"
+      responses:
+        "200":
+          description: Updated profile and flags.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: Missing/invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /me/accept-legal:
+    post:
+      tags: [Me]
+      summary: Record acceptance of terms and privacy policy.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptLegalRequest"
+      responses:
+        "200":
+          description: Legal acceptance recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptLegalResponse"
+        "401":
+          description: Missing/invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /me/device:
+    post:
+      tags: [Me]
+      summary: Register or update a device push token.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "200":
+          description: Device registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterDeviceResponse"
+        "401":
+          description: Missing/invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /briefings/today:
+    get:
+      tags: [Briefings]
+      summary: Get today's precomputed briefing for the user's sleep window.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Briefing returned (items limited by free/premium).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefingResponse"
+        "401":
+          description: Missing/invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /briefings/{date}:
+    get:
+      tags: [Briefings]
+      summary: Get briefing for a specific date (premium-only).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: date
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          description: Date in YYYY-MM-DD.
+      responses:
+        "200":
+          description: Briefing for date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BriefingResponse"
+        "401":
+          description: Missing/invalid access token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not premium.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /webhooks/revenuecat:
+    post:
+      tags: [Webhooks]
+      summary: Receive RevenueCat webhook events to update entitlements.
+      description: |
+        Protect this endpoint with a shared secret header. Payload format may evolve.
+      parameters:
+        - in: header
+          name: X-Webhook-Secret
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevenueCatWebhookEvent"
+      responses:
+        "200":
+          description: Event accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+        "401":
+          description: Invalid webhook secret.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
