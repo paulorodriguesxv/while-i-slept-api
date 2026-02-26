@@ -55,6 +55,13 @@ class InMemoryDeviceRepository(DeviceRepository):
         self._devices[(device.user_id, device.device_id)] = deepcopy(device)
         return deepcopy(device)
 
+    def list_by_user(self, user_id: str) -> list[DeviceRegistration]:
+        return [
+            deepcopy(device)
+            for (stored_user_id, _), device in self._devices.items()
+            if stored_user_id == user_id
+        ]
+
 
 class InMemoryBriefingRepository(BriefingRepository):
     """Stores briefings in memory."""

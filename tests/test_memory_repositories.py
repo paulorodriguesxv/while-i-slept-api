@@ -51,6 +51,8 @@ def test_in_memory_device_and_briefing_repositories_round_trip() -> None:
         )
     )
     assert stored_device.device_id == "dev-rt"
+    assert len(device_repo.list_by_user("usr_repo_roundtrip")) == 1
+    assert device_repo.list_by_user("usr_missing") == []
 
     briefing_repo = InMemoryBriefingRepository()
     assert briefing_repo.get_for_user_date("usr_repo_roundtrip", "2026-01-01") is None

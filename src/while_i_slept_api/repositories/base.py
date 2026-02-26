@@ -40,6 +40,9 @@ class DeviceRepository(Protocol):
     def upsert(self, device: DeviceRegistration) -> DeviceRegistration:
         ...
 
+    def list_by_user(self, user_id: str) -> list[DeviceRegistration]:
+        ...
+
 
 class BriefingRepository(Protocol):
     """Persistence operations for precomputed briefings."""

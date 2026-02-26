@@ -14,7 +14,7 @@ All timestamps should be ISO-8601 strings (UTC) unless stated.
 Purpose: user profile, onboarding state, preferences, entitlement snapshot.
 
 ### Keys
-- PK: user_id (string, e.g., "usr_<uuid>")
+- PK: "USER#<user_id>" (string, e.g., "USER#usr_<uuid>")
 - SK: "PROFILE" (constant)
 
 ### Attributes (PROFILE item)
@@ -66,7 +66,7 @@ On PROFILE item:
 Purpose: per-user push tokens, devices.
 
 ### Keys
-- PK: user_id
+- PK: "USER#<user_id>"
 - SK: "DEVICE#<device_id>"
 
 ### Attributes

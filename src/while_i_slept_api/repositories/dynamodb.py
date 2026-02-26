@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from decimal import Decimal
+import os
 from typing import Any, cast
 
 from while_i_slept_api.core.config import Settings
@@ -47,10 +48,15 @@ class DynamoTableFactory:
         if self._resource is None:
             import boto3  # Imported lazily so tests can run without boto3 installed.
 
+            endpoint_url = (
+                self._settings.dynamodb_endpoint_url
+                or os.getenv("DYNAMODB_ENDPOINT_URL")
+                or os.getenv("AWS_ENDPOINT_URL")
+            )
             self._resource = boto3.resource(
                 "dynamodb",
                 region_name=self._settings.aws_region,
-                endpoint_url=self._settings.dynamodb_endpoint_url,
+                endpoint_url=endpoint_url,
             )
         return self._resource
 
@@ -71,7 +77,7 @@ class DynamoUserRepository(UserRepository):
         self._table = factory.users()
 
     def get_by_id(self, user_id: str) -> UserProfile | None:
-        response = self._table.get_item(Key={"user_id": user_id, "sk": "PROFILE"})
+        response = self._table.get_item(Key={"pk": f"USER#{user_id}", "sk": "PROFILE"})
         item = response.get("Item")
         if not item:
             return None
@@ -91,7 +97,15 @@ class DynamoUserRepository(UserRepository):
         return self._from_item(cast(dict[str, Any], items[0]))
 
     def save(self, user: UserProfile) -> UserProfile:
-        self._table.put_item(Item=self._to_item(user))
+        item = self._to_item(user)
+        conditional_check_failed = self._table.meta.client.exceptions.ConditionalCheckFailedException
+        try:
+            self._table.put_item(
+                Item=item,
+                ConditionExpression="attribute_not_exists(pk)",
+            )
+        except conditional_check_failed:
+            self._table.put_item(Item=item)
         return user
 
     def update_entitlements(self, user_id: str, entitlements: EntitlementState) -> UserProfile | None:
@@ -104,6 +118,7 @@ class DynamoUserRepository(UserRepository):
 
     def _to_item(self, user: UserProfile) -> dict[str, Any]:
         return {
+            "pk": f"USER#{user.user_id}",
             "user_id": user.user_id,
             "sk": "PROFILE",
             "provider": user.provider,
@@ -132,6 +147,11 @@ class DynamoUserRepository(UserRepository):
 
     def _from_item(self, item: dict[str, Any]) -> UserProfile:
         normalized = _normalize_number(item)
+        user_id = normalized.get("user_id")
+        if not user_id and isinstance(normalized.get("pk"), str):
+            pk_value = normalized["pk"]
+            if pk_value.startswith("USER#"):
+                user_id = pk_value.removeprefix("USER#")
         timezone = normalized.get("timezone")
         sleep_window = None
         if normalized.get("sleep_start") and normalized.get("sleep_end"):
@@ -141,7 +161,7 @@ class DynamoUserRepository(UserRepository):
                 timezone=timezone or "America/Sao_Paulo",
             )
         return UserProfile(
-            user_id=normalized["user_id"],
+            user_id=user_id or "",
             provider=normalized["provider"],
             provider_user_id=normalized["provider_user_id"],
             email=normalized.get("email"),
@@ -174,6 +194,7 @@ class DynamoDeviceRepository(DeviceRepository):
     def upsert(self, device: DeviceRegistration) -> DeviceRegistration:
         self._table.put_item(
             Item={
+                "pk": f"USER#{device.user_id}",
                 "user_id": device.user_id,
                 "sk": f"DEVICE#{device.device_id}",
                 "device_id": device.device_id,
@@ -185,6 +206,29 @@ class DynamoDeviceRepository(DeviceRepository):
             }
         )
         return device
+
+    def list_by_user(self, user_id: str) -> list[DeviceRegistration]:
+        from boto3.dynamodb.conditions import Key
+
+        response = self._table.query(
+            KeyConditionExpression=Key("pk").eq(f"USER#{user_id}") & Key("sk").begins_with("DEVICE#"),
+        )
+        items = response.get("Items") or []
+        devices: list[DeviceRegistration] = []
+        for raw in items:
+            item = _normalize_number(cast(dict[str, Any], raw))
+            devices.append(
+                DeviceRegistration(
+                    user_id=item["user_id"],
+                    device_id=item["device_id"],
+                    platform=item["platform"],
+                    push_token=item["push_token"],
+                    app_version=item.get("app_version"),
+                    created_at=item.get("created_at", ""),
+                    updated_at=item.get("updated_at", ""),
+                )
+            )
+        return devices
 
 
 class DynamoBriefingRepository(BriefingRepository):
