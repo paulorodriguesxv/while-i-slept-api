@@ -24,7 +24,10 @@ class RevenueCatService:
     def process_webhook(self, payload: dict[str, Any]) -> None:
         """Parse webhook payload and update user entitlements if possible."""
 
-        event = payload.get("event") if isinstance(payload.get("event"), dict) else payload
+        if not isinstance(payload, dict):
+            return
+        raw_event = payload.get("event")
+        event = raw_event if raw_event is not None else payload
         if not isinstance(event, dict):
             return
 

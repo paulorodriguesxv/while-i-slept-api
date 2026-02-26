@@ -1,4 +1,4 @@
-.PHONY: infra-up infra-down migrate up down logs test shell
+.PHONY: infra-up infra-down migrate up down logs test coverage shell
 
 infra-up:
 	docker compose up -d localstack
@@ -20,7 +20,12 @@ logs:
 	docker compose logs -f api localstack
 
 test: infra-up
+	docker compose build tests
 	docker compose run --rm tests
+
+coverage: infra-up
+	docker compose build tests
+	docker compose run --rm tests sh -lc "python scripts/create_tables.py && pytest -q --cov=while_i_slept_api.services --cov=while_i_slept_api.repositories.memory --cov-report=term-missing"
 
 shell:
 	docker compose exec api /bin/sh

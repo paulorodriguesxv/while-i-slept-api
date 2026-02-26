@@ -31,3 +31,24 @@ def test_non_stub_token_is_rejected_when_insecure_mode_disabled() -> None:
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.code == "INVALID_PROVIDER_TOKEN"
+
+
+def test_insecure_mode_accepts_non_stub_token() -> None:
+    validator = OAuthTokenValidator(Settings(allow_insecure_oauth_tokens=True))
+
+    identity = validator.validate(provider="apple", id_token="opaque-provider-token")
+
+    assert identity.provider == "apple"
+    assert identity.provider_user_id.startswith("insecure_")
+    assert identity.email is None
+    assert identity.name is None
+
+
+@pytest.mark.parametrize("token", ["stub:", "stub:|missing-sub"])
+def test_invalid_stub_tokens_are_rejected(token: str) -> None:
+    validator = OAuthTokenValidator(Settings())
+
+    with pytest.raises(ApiError) as exc_info:
+        validator.validate(provider="google", id_token=token)
+
+    assert exc_info.value.code == "INVALID_PROVIDER_TOKEN"
