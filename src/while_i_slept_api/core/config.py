@@ -27,10 +27,17 @@ class Settings(BaseSettings):
     allow_insecure_oauth_tokens: bool = False
 
     aws_region: str = "us-east-1"
+    aws_endpoint_url: str | None = None
+    sqs_endpoint_url: str | None = None
     dynamodb_endpoint_url: str | None = None
     users_table: str = "users"
     devices_table: str = "devices"
     briefings_table: str = "briefings"
+    summary_jobs_queue_url: str | None = None
+    summary_worker_visibility_timeout_seconds: int = 60
+    summary_worker_wait_time_seconds: int = 20
+    summary_worker_retry_attempts: int = 3
+    summary_worker_retry_backoff_seconds: float = 0.2
 
     auth_bearer_scheme: str = Field(default="Bearer", frozen=True)
 

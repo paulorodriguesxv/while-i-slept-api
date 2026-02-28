@@ -61,18 +61,43 @@ DEFAULT_FEED_REGISTRY: dict[str, dict[str, tuple[FeedDefinition, ...]]] = {
         "sports": (
             FeedDefinition(url="https://feeds.bbci.co.uk/sport/rss.xml?edition=uk", source_name="BBC Sport"),
         ),
+        "finance": (
+            FeedDefinition(
+                url="https://www.infomoney.com.br/feed/",
+                source_name="InfoMoney"
+            ),
+        )
     },
     "pt": {
         "world": (
-            FeedDefinition(url="https://g1.globo.com/dynamo/mundo/rss2.xml", source_name="G1 Mundo"),
+            FeedDefinition(
+                url="https://g1.globo.com/dynamo/mundo/rss2.xml",
+                source_name="G1 Mundo"
+            ),
         ),
         "technology": (
-            FeedDefinition(url="https://g1.globo.com/dynamo/tecnologia/rss2.xml", source_name="G1 Tecnologia"),
+            FeedDefinition(
+                url="https://g1.globo.com/dynamo/tecnologia/rss2.xml",
+                source_name="G1 Tecnologia"
+            ),
         ),
-        "business": (),
-        "science": (),
+        "finance": (
+            FeedDefinition(
+                url="https://www.infomoney.com.br/feed/",
+                source_name="InfoMoney"
+            ),
+        ),
+        "science": (
+            FeedDefinition(
+                url="https://g1.globo.com/dynamo/ciencia-e-saude/rss2.xml",
+                source_name="G1 Ciência"
+            ),
+        ),
         "sports": (
-            FeedDefinition(url="https://g1.globo.com/dynamo/esportes/rss2.xml", source_name="G1 Esportes"),
+            FeedDefinition(
+                url="https://g1.globo.com/dynamo/esportes/rss2.xml",
+                source_name="G1 Esportes"
+            ),
         ),
     },
 }
