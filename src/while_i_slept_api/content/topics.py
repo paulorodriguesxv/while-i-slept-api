@@ -10,6 +10,7 @@ ALLOWED_TOPICS = frozenset(
         "business",
         "science",
         "sports",
+        "finance",
     }
 )
 
