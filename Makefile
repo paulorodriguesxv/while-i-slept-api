@@ -38,7 +38,7 @@ create-table:
 	docker compose run --rm api sh -lc "python scripts/create_table.py"
 
 local-worker:
-	docker compose run --rm api sh -lc "python app/worker/local_consumer.py"
+	docker compose run --rm api sh -lc "python -m while_i_slept_api.summarizer_worker.local_consumer"
 
 local-fetch:
 	docker compose run --rm api sh -lc "python scripts/fetch_rss.py"
