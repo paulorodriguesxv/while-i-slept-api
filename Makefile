@@ -29,3 +29,24 @@ coverage: infra-up
 
 shell:
 	docker compose exec api /bin/sh
+
+create-queues:
+	docker compose run --rm api sh -lc "python scripts/create_queues.py"
+
+
+create-table:
+	docker compose run --rm api sh -lc "python scripts/create_table.py"
+
+local-worker:
+	docker compose run --rm api sh -lc "python app/worker/local_consumer.py"
+
+local-fetch:
+	docker compose run --rm api sh -lc "python scripts/fetch_rss.py"
+
+purge-queue:
+	PYTHONPATH=src python scripts/purge_queue.py
+
+.PHONY: base-image
+
+base-image:
+	docker compose build $(if $(NO_CACHE),--no-cache --pull,) api tests

@@ -2,7 +2,7 @@ services:
   localstack:
     image: localstack/localstack:latest
     environment:
-      SERVICES: dynamodb
+      SERVICES: sqs,dynamodb
       EDGE_PORT: "4566"
       AWS_DEFAULT_REGION: us-east-1
     ports:
@@ -19,7 +19,7 @@ services:
     working_dir: /app
     volumes:
       - ./:/app
-    ports:
+    ports:  
       - "8123:8000"
     depends_on:
       - localstack
