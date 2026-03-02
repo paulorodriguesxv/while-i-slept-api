@@ -16,7 +16,12 @@ def _required_env(name: str, default: str | None = None) -> str:
 
 
 def main() -> None:
-    region = _required_env("AWS_REGION", "us-east-1")
+    region = (
+        os.getenv("AWS_REGION")
+        or os.getenv("AWS_DEFAULT_REGION")
+        or os.getenv("APP_AWS_REGION")
+        or "us-east-1"
+    )
     endpoint_url = os.getenv("AWS_ENDPOINT_URL")
     queue_name = _required_env("SQS_QUEUE_NAME", "summary-jobs")
 

@@ -16,7 +16,12 @@ def _required_env(name: str, default: str | None = None) -> str:
 
 
 def main() -> None:
-    region = _required_env("AWS_REGION", "us-east-1")
+    region = (
+        os.getenv("AWS_REGION")
+        or os.getenv("AWS_DEFAULT_REGION")
+        or os.getenv("APP_AWS_REGION")
+        or "us-east-1"
+    )
     endpoint_url = os.getenv("AWS_ENDPOINT_URL")
     table_name = _required_env("DYNAMO_TABLE_NAME", "articles")
 
@@ -34,8 +39,14 @@ def main() -> None:
         dynamodb.create_table(
             TableName=table_name,
             BillingMode="PAY_PER_REQUEST",
-            AttributeDefinitions=[{"AttributeName": "content_hash", "AttributeType": "S"}],
-            KeySchema=[{"AttributeName": "content_hash", "KeyType": "HASH"}],
+            AttributeDefinitions=[
+                {"AttributeName": "pk", "AttributeType": "S"},
+                {"AttributeName": "sk", "AttributeType": "S"},
+            ],
+            KeySchema=[
+                {"AttributeName": "pk", "KeyType": "HASH"},
+                {"AttributeName": "sk", "KeyType": "RANGE"},
+            ],
         )
         dynamodb.get_waiter("table_exists").wait(TableName=table_name)
     except ClientError as exc:
