@@ -25,7 +25,7 @@ test: infra-up
 
 coverage: infra-up
 	docker compose build tests
-	docker compose run --rm tests sh -lc "python scripts/create_tables.py && pytest -q --cov=while_i_slept_api.services --cov=while_i_slept_api.repositories.memory --cov-report=term-missing"
+	docker compose run --rm tests sh -lc "python scripts/create_tables.py && pytest -q --cov=while_i_slept_api.services --cov=while_i_slept_api.repositories.memory --cov=while_i_slept_api.article_pipeline --cov=while_i_slept_api.summarizer_worker --cov-report=term-missing --cov-report=html:htmlcov"
 
 shell:
 	docker compose exec api /bin/sh

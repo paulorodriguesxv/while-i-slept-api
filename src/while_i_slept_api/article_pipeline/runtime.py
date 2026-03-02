@@ -7,7 +7,7 @@ import os
 from while_i_slept_api.article_pipeline.infrastructure.aws_clients import AwsClientFactory
 from while_i_slept_api.article_pipeline.infrastructure.dynamodb_single_table import DynamoArticleSummaryRepository
 from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsSummaryJobQueue
-from while_i_slept_api.article_pipeline.summarizer import NotImplementedSummarizer
+from while_i_slept_api.article_pipeline.summarizers.not_implemented import NotImplementedSummarizer
 from while_i_slept_api.article_pipeline.use_cases import IngestArticleUseCase, ProcessSummaryJobUseCase
 from while_i_slept_api.summarizer_worker.logging import StructuredLogger
 
