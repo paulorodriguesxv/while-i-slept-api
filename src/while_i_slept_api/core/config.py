@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     devices_table: str = "devices"
     briefings_table: str = "briefings"
     summary_jobs_queue_url: str | None = None
+    summarizer_impl: str = "smart"
     summary_worker_visibility_timeout_seconds: int = 60
     summary_worker_wait_time_seconds: int = 20
     summary_worker_retry_attempts: int = 3
