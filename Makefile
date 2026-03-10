@@ -117,9 +117,9 @@ summary-pipeline-init: infra-up \
 summary-pipeline-fetch: ##@summary-pipeline-fetch Fetch RSS feeds for the summary pipeline
 	make local-fetch
 
-.PHONY: summary-pipeline-worker
-summary-pipeline-worker: ##@summary-pipeline-worker Run the local worker for the summary pipeline
-	make local-worker
+# .PHONY: summary-pipeline-worker
+# summary-pipeline-worker: ##@summary-pipeline-worker Run the local worker for the summary pipeline
+# 	make local-worker
 
 .PHONY: summary-worker-loop
 summary-worker-loop: ##@summary-worker-loop Continuously run the local worker for testing
@@ -142,5 +142,5 @@ local-worker-once: ##@local-worker-once Run local summarizer worker in finite on
 	docker compose run --rm api sh -lc "python -m while_i_slept_api.summarizer_worker.local_consumer --once"
 
 .PHONY: summary-pipeline-worker
-summary-pipeline-worker:
+summary-pipeline-worker: ##@summary-pipeline-worker Run the local worker for the summary pipeline in once mode
 	make local-worker-once
