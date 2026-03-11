@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 import os
 from types import SimpleNamespace
@@ -29,6 +30,7 @@ class _FakeTable:
         self.items: dict[tuple[str, str], dict[str, Any]] = {}
         self.put_calls: list[dict[str, Any]] = []
         self.update_calls: list[dict[str, Any]] = []
+        self.query_calls: list[dict[str, Any]] = []
         self.fail_put_condition = False
         self.meta = SimpleNamespace(
             client=SimpleNamespace(exceptions=SimpleNamespace(ConditionalCheckFailedException=_ConditionalCheckFailed))
@@ -48,6 +50,21 @@ class _FakeTable:
 
     def update_item(self, **kwargs: Any) -> None:
         self.update_calls.append(kwargs)
+
+    def query(self, **kwargs: Any) -> dict[str, Any]:
+        self.query_calls.append(kwargs)
+        values = kwargs.get("ExpressionAttributeValues", {})
+        pk = values.get(":pk")
+        start = values.get(":start")
+        end = values.get(":end")
+        limit = int(kwargs.get("Limit", 50))
+        rows = [
+            item
+            for item in self.items.values()
+            if item.get("pk") == pk and start <= item.get("sk", "") <= end
+        ]
+        rows.sort(key=lambda item: str(item.get("sk", "")))
+        return {"Items": rows[:limit]}
 
 
 class _FakeResource:
@@ -256,3 +273,95 @@ def test_aws_client_factory_uses_resolved_env(monkeypatch: pytest.MonkeyPatch) -
     assert fake.resource_calls[0]["region_name"] == "us-east-2"
     assert fake.resource_calls[0]["endpoint_url"] == "http://localstack:4566"
     assert fake.client_calls[0]["service_name"] == "sqs"
+
+def test_dynamo_repo_query_feed_window_returns_rows_in_range_in_order() -> None:
+    table = _FakeTable()
+    repo = DynamoArticleSummaryRepository(table)
+    table.items[("FEED#en#all", "T#2026-03-10T00:20:00+00:00#H#h0")] = {
+        "pk": "FEED#en#all",
+        "sk": "T#2026-03-10T00:20:00+00:00#H#h0",
+        "content_hash": "h0",
+        "title": "Old",
+        "source": "S",
+        "source_url": "https://s/0",
+        "published_at": "2026-03-10T00:20:00+00:00",
+        "summary_version_default": 1,
+    }
+    table.items[("FEED#en#all", "T#2026-03-10T01:20:00+00:00#H#h1")] = {
+        "pk": "FEED#en#all",
+        "sk": "T#2026-03-10T01:20:00+00:00#H#h1",
+        "content_hash": "h1",
+        "title": "One",
+        "source": "S",
+        "source_url": "https://s/1",
+        "published_at": "2026-03-10T01:20:00+00:00",
+        "summary_version_default": 1,
+    }
+    table.items[("FEED#en#all", "T#2026-03-10T02:20:00+00:00#H#h2")] = {
+        "pk": "FEED#en#all",
+        "sk": "T#2026-03-10T02:20:00+00:00#H#h2",
+        "content_hash": "h2",
+        "title": "Two",
+        "source": "S",
+        "source_url": "https://s/2",
+        "published_at": "2026-03-10T02:20:00+00:00",
+        "summary_version_default": 2,
+    }
+    table.items[("FEED#en#all", "T#2026-03-10T03:20:00+00:00#H#h3")] = {
+        "pk": "FEED#en#all",
+        "sk": "T#2026-03-10T03:20:00+00:00#H#h3",
+        "content_hash": "h3",
+        "title": "New",
+        "source": "S",
+        "source_url": "https://s/3",
+        "published_at": "2026-03-10T03:20:00+00:00",
+        "summary_version_default": 1,
+    }
+
+    rows = repo.query_feed_window(
+        language="en",
+        start_time=datetime(2026, 3, 10, 1, 0, tzinfo=UTC),
+        end_time=datetime(2026, 3, 10, 3, 0, tzinfo=UTC),
+        limit=10,
+    )
+
+    assert [row["content_hash"] for row in rows] == ["h1", "h2"]
+    assert [row["published_at"] for row in rows] == [
+        "2026-03-10T01:20:00+00:00",
+        "2026-03-10T02:20:00+00:00",
+    ]
+
+
+def test_dynamo_repo_query_feed_window_empty_returns_empty_list() -> None:
+    table = _FakeTable()
+    repo = DynamoArticleSummaryRepository(table)
+
+    rows = repo.query_feed_window(
+        language="pt",
+        start_time=datetime(2026, 3, 10, 1, 0, tzinfo=UTC),
+        end_time=datetime(2026, 3, 10, 2, 0, tzinfo=UTC),
+        limit=10,
+    )
+
+    assert rows == []
+
+
+def test_dynamo_repo_get_summary_returns_only_done() -> None:
+    table = _FakeTable()
+    repo = DynamoArticleSummaryRepository(table)
+    table.items[("ARTICLE#h1", "SUMMARY#v1")] = {
+        "pk": "ARTICLE#h1",
+        "sk": "SUMMARY#v1",
+        "status": "DONE",
+        "summary": "summary-1",
+    }
+    table.items[("ARTICLE#h2", "SUMMARY#v1")] = {
+        "pk": "ARTICLE#h2",
+        "sk": "SUMMARY#v1",
+        "status": "PENDING",
+        "summary": "summary-2",
+    }
+
+    assert repo.get_summary("h1", 1) == "summary-1"
+    assert repo.get_summary("h2", 1) is None
+    assert repo.get_summary("missing", 1) is None
