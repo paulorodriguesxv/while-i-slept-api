@@ -8,6 +8,7 @@ from while_i_slept_api.article_pipeline.feed_query.dto import (
     SleepWindowResponse,
 )
 from while_i_slept_api.article_pipeline.feed_query.ports import FeedQueryRepository
+from while_i_slept_api.article_pipeline.story_dedup.cluster import deduplicate_articles
 
 
 class GetSleepWindowFeedUseCase:
@@ -44,4 +45,4 @@ class GetSleepWindowFeedUseCase:
                 )
             )
 
-        return SleepWindowResponse(items=items)
+        return SleepWindowResponse(items=deduplicate_articles(items))

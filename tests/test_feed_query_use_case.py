@@ -98,3 +98,43 @@ def test_sleep_window_use_case_returns_empty_when_no_rows() -> None:
 
     assert response.items == []
     assert repo.summary_calls == []
+
+
+def test_sleep_window_use_case_deduplicates_similar_story_titles() -> None:
+    rows = [
+        {
+            "content_hash": "h1",
+            "title": "US senate approves major climate bill",
+            "source": "A",
+            "source_url": "https://a",
+            "published_at": "2026-03-10T01:00:00Z",
+            "summary_version_default": 1,
+        },
+        {
+            "content_hash": "h2",
+            "title": "Senate approves major climate bill in US",
+            "source": "B",
+            "source_url": "https://b",
+            "published_at": "2026-03-10T01:10:00Z",
+            "summary_version_default": 1,
+        },
+    ]
+    repo = _FakeFeedQueryRepository(
+        rows=rows,
+        summaries={
+            ("h1", 1): "short",
+            ("h2", 1): "a much longer summary for the same story",
+        },
+    )
+    use_case = GetSleepWindowFeedUseCase(repo)
+
+    response = use_case.execute(
+        SleepWindowRequest(
+            language="en",
+            start_time=datetime(2026, 3, 10, 0, 30, tzinfo=UTC),
+            end_time=datetime(2026, 3, 10, 3, 0, tzinfo=UTC),
+            limit=50,
+        )
+    )
+
+    assert [item.content_hash for item in response.items] == ["h2"]
