@@ -53,7 +53,7 @@ DEFAULT_FEED_REGISTRY: dict[str, dict[str, tuple[FeedDefinition, ...]]] = {
             FeedDefinition(url="https://feeds.arstechnica.com/arstechnica/technology-lab", source_name="Ars Technica"),
         ),
         "business": (
-            FeedDefinition(url="https://feeds.reuters.com/reuters/businessNews", source_name="Reuters Business"),
+            FeedDefinition(url="https://news.google.com/rss/search?q=site:reuters.com+business&hl=en-US&gl=US&ceid=US:en", source_name="Reuters Business"),
         ),
         "science": (
             FeedDefinition(url="https://www.sciencedaily.com/rss/top/science.xml", source_name="ScienceDaily"),
@@ -80,6 +80,9 @@ DEFAULT_FEED_REGISTRY: dict[str, dict[str, tuple[FeedDefinition, ...]]] = {
                 url="https://g1.globo.com/dynamo/tecnologia/rss2.xml",
                 source_name="G1 Tecnologia"
             ),
+        ),
+        "business": (
+            FeedDefinition(url="https://news.google.com/rss/search?q=site:reuters.com+business&hl=en-US&gl=US&ceid=US:en", source_name="Reuters Business"),
         ),
         "finance": (
             FeedDefinition(

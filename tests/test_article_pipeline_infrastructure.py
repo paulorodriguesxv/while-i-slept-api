@@ -89,6 +89,26 @@ def _sample_article() -> RawArticle:
     )
 
 
+def _sample_enriched_article() -> RawArticle:
+    return RawArticle(
+        content_hash="hash456",
+        article_id="a2",
+        language="en",
+        topic="world",
+        source="Example",
+        source_url="https://example.com/story-2",
+        title="Title 2",
+        content="Long content",
+        published_at="2026-02-27T11:00:00Z",
+        ingested_at="2026-02-27T11:01:00Z",
+        image_url="https://example.com/image.jpg",
+        description="Description",
+        author="Author",
+        article_published_time="2026-02-27T10:58:00Z",
+        reading_time_minutes=3,
+    )
+
+
 def _sample_job() -> SummaryJob:
     return SummaryJob.from_payload(
         {
@@ -172,6 +192,22 @@ def test_dynamo_repo_put_get_and_update_paths() -> None:
     assert any("tokens_used" in call["UpdateExpression"] for call in table.update_calls)
 
 
+def test_dynamo_repo_persists_optional_raw_metadata_fields() -> None:
+    table = _FakeTable()
+    repo = DynamoArticleSummaryRepository(table)
+    article = _sample_enriched_article()
+
+    assert repo.put_raw_article_if_absent(article) is True
+    fetched = repo.get_raw_article(article.content_hash)
+
+    assert fetched is not None
+    assert fetched.image_url == article.image_url
+    assert fetched.description == article.description
+    assert fetched.author == article.author
+    assert fetched.article_published_time == article.article_published_time
+    assert fetched.reading_time_minutes == article.reading_time_minutes
+
+
 def test_dynamo_repo_from_resource_uses_env_default(monkeypatch: pytest.MonkeyPatch) -> None:
     table = _FakeTable()
     resource = _FakeResource(table)
@@ -220,4 +256,3 @@ def test_aws_client_factory_uses_resolved_env(monkeypatch: pytest.MonkeyPatch) -
     assert fake.resource_calls[0]["region_name"] == "us-east-2"
     assert fake.resource_calls[0]["endpoint_url"] == "http://localstack:4566"
     assert fake.client_calls[0]["service_name"] == "sqs"
-

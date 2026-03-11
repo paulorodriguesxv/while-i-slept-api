@@ -20,7 +20,7 @@ class SummaryJob(BaseModel):
     article_id: str
     content_hash: str
     language: Literal["en", "pt"]
-    topic: Literal["world", "technology", "finance", "science", "sports"]
+    topic: Literal["world", "technology", "finance", "science", "sports", "business"]
     summary_version: int
     priority: Literal["normal", "high"]
     reprocess: bool
