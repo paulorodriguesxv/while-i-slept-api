@@ -22,6 +22,11 @@ class RawArticle:
     content: str
     published_at: str
     ingested_at: str
+    image_url: str | None = None
+    description: str | None = None
+    author: str | None = None
+    article_published_time: str | None = None
+    reading_time_minutes: int = 1
 
 
 @dataclass(slots=True, frozen=True)
@@ -43,4 +48,3 @@ class SummaryOutput:
     model_used: str
     tokens_used: int | None = None
     cost_estimate_usd: float | None = None
-

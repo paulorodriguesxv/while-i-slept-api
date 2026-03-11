@@ -16,11 +16,14 @@ from while_i_slept_api.summarizer_worker.errors import (
 )
 from while_i_slept_api.summarizer_worker.local_consumer import (
     _build_sqs_client,
+    _parse_args,
     _process_article_job,
     _process_record,
     _resolve_queue_url,
+    main,
     poll_once,
     run_forever,
+    run_once,
 )
 from while_i_slept_api.summarizer_worker.logging import StructuredLogger
 from while_i_slept_api.summarizer_worker.message_processing import process_sqs_record
@@ -282,6 +285,43 @@ def test_local_consumer_run_forever_single_iteration(monkeypatch: pytest.MonkeyP
     assert poll_calls["count"] == 1
 
 
+def test_local_consumer_run_once_stops_after_empty_polls(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = Settings(jwt_secret="x" * 32, summary_jobs_queue_url="https://queue")
+    poll_calls = {"count": 0}
+
+    monkeypatch.setattr("while_i_slept_api.summarizer_worker.local_consumer._build_sqs_client", lambda _: _FakeSqs())
+    monkeypatch.setattr("while_i_slept_api.summarizer_worker.local_consumer.build_process_summary_use_case", lambda: _FakeUseCase())
+    monkeypatch.setattr("while_i_slept_api.summarizer_worker.local_consumer._resolve_queue_url", lambda *_: "https://queue")
+    monkeypatch.setattr("while_i_slept_api.summarizer_worker.local_consumer.signal.signal", lambda *_: None)
+
+    def _fake_poll_once(**_: Any) -> bool:
+        poll_calls["count"] += 1
+        return False
+
+    monkeypatch.setattr("while_i_slept_api.summarizer_worker.local_consumer.poll_once", _fake_poll_once)
+    run_once(settings, max_empty_polls=2)
+
+    assert poll_calls["count"] == 2
+
+
+def test_local_consumer_cli_once_mode_dispatches(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: dict[str, Any] = {}
+
+    def _fake_run_once(*, max_empty_polls: int, settings: Settings | None = None) -> None:
+        called["run_once"] = {"max_empty_polls": max_empty_polls, "settings": settings}
+
+    monkeypatch.setattr("while_i_slept_api.summarizer_worker.local_consumer.run_once", _fake_run_once)
+    monkeypatch.setattr("while_i_slept_api.summarizer_worker.local_consumer.run_forever", lambda *_: called.setdefault("run_forever", True))
+
+    args = _parse_args(["--once", "--max-empty-polls", "3"])
+    assert args.once is True
+    assert args.max_empty_polls == 3
+
+    main(["--once", "--max-empty-polls", "3"])
+    assert called["run_once"]["max_empty_polls"] == 3
+    assert "run_forever" not in called
+
+
 def test_lambda_handler_extra_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     assert lambda_module.lambda_handler({"Records": "bad"}, None) == {"batchItemFailures": []}
 
@@ -301,4 +341,3 @@ def test_lambda_handler_extra_branches(monkeypatch: pytest.MonkeyPatch) -> None:
         None,
     )
     assert result == {"batchItemFailures": [{"itemIdentifier": "m1"}]}
-

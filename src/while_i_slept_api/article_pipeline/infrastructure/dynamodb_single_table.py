@@ -47,7 +47,16 @@ class DynamoArticleSummaryRepository(ArticleSummaryRepository):
             "content": article.content,
             "published_at": article.published_at,
             "ingested_at": article.ingested_at,
+            "reading_time_minutes": article.reading_time_minutes,
         }
+        if article.image_url:
+            item["image_url"] = article.image_url
+        if article.description:
+            item["description"] = article.description
+        if article.author:
+            item["author"] = article.author
+        if article.article_published_time:
+            item["article_published_time"] = article.article_published_time
         conditional_check_failed = self._table.meta.client.exceptions.ConditionalCheckFailedException
         try:
             self._table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
@@ -104,6 +113,11 @@ class DynamoArticleSummaryRepository(ArticleSummaryRepository):
             content=normalized["content"],
             published_at=normalized["published_at"],
             ingested_at=normalized.get("ingested_at", ""),
+            image_url=normalized.get("image_url"),
+            description=normalized.get("description"),
+            author=normalized.get("author"),
+            article_published_time=normalized.get("article_published_time"),
+            reading_time_minutes=int(normalized.get("reading_time_minutes", 1)),
         )
 
     def get_summary_state(self, *, content_hash: str, summary_version: int) -> SummaryState | None:

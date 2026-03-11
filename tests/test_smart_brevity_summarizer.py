@@ -171,3 +171,57 @@ def test_smart_brevity_defaults_to_english_for_unknown_language() -> None:
 
     assert "Why it matters: " in output.summary
     assert "Bottom line: " in output.summary
+
+
+def test_smart_brevity_sentence_scoring_prioritizes_high_signal_sentence_en() -> None:
+    summarizer = SmartBrevitySummarizer()
+    article = RawArticle(
+        content_hash="h6",
+        article_id="a6",
+        language="en",
+        topic="economy",
+        source="Example",
+        source_url="https://example.com/en-scoring",
+        title="Market oversight update",
+        content=(
+            "A committee met in the city hall to discuss routine administrative updates for the district. "
+            "The market regulation update will affect 12 major banks and market liquidity in 2026. "
+            "Observers noted mixed reactions from industry groups during the hearing. "
+            "Officials said a final implementation timeline will be published next month."
+        ),
+        published_at="2026-02-27T10:00:00Z",
+        ingested_at="2026-02-27T10:05:00Z",
+    )
+
+    output = summarizer.summarize(article, _job())
+    _, why, _, bottom = _parse(output.summary)
+
+    assert "affect 12 major banks" in why.lower()
+    assert "final implementation timeline" in bottom.lower()
+
+
+def test_smart_brevity_sentence_scoring_prioritizes_high_signal_sentence_pt() -> None:
+    summarizer = SmartBrevitySummarizer()
+    article = RawArticle(
+        content_hash="h7",
+        article_id="a7",
+        language="pt",
+        topic="economia",
+        source="Exemplo",
+        source_url="https://example.com/pt-scoring",
+        title="Atualização sobre regulação",
+        content=(
+            "Representantes se reuniram para tratar de detalhes gerais sem impacto imediato para consumidores. "
+            "A nova regulação do mercado pode reduzir custos em 15 por cento para bancos em 2026. "
+            "Especialistas apontam que a transição exigirá auditorias mensais. "
+            "O tribunal deve publicar a decisão final após consulta pública."
+        ),
+        published_at="2026-02-27T10:00:00Z",
+        ingested_at="2026-02-27T10:05:00Z",
+    )
+
+    output = summarizer.summarize(article, _job(language="pt"))
+    _, why, _, bottom = _parse(output.summary, why_label="Por que importa", bottom_label="Em resumo")
+
+    assert "reduzir custos em 15" in why.lower()
+    assert "decisão final" in bottom.lower()

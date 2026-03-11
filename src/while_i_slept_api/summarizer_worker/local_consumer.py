@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from collections.abc import Callable
 import json
 import os
@@ -18,11 +19,47 @@ from while_i_slept_api.summarizer_worker.message_processing import process_sqs_r
 from while_i_slept_api.summarizer_worker.retry import RetryPolicy, execute_with_retries
 
 
+_DEFAULT_ONCE_MAX_EMPTY_POLLS = 2
+
+
 def run_forever(settings: Settings | None = None) -> None:
     """Poll SQS forever and process one message at a time."""
 
+    _run_consumer(
+        settings=settings,
+        once=False,
+        max_empty_polls=_DEFAULT_ONCE_MAX_EMPTY_POLLS,
+    )
+
+
+def run_once(
+    settings: Settings | None = None,
+    *,
+    max_empty_polls: int = _DEFAULT_ONCE_MAX_EMPTY_POLLS,
+) -> None:
+    """Poll SQS until consecutive empty polls are reached."""
+
+    if max_empty_polls < 1:
+        raise ValueError("max_empty_polls must be >= 1.")
+
+    _run_consumer(
+        settings=settings,
+        once=True,
+        max_empty_polls=max_empty_polls,
+    )
+
+
+def _run_consumer(
+    *,
+    settings: Settings | None,
+    once: bool,
+    max_empty_polls: int,
+) -> None:
+    """Run consumer loop in continuous or finite mode."""
+
     cfg = settings or get_settings()
     running = {"value": True}
+    consecutive_empty_polls = 0
     logger = StructuredLogger("while_i_slept.summarizer.local_consumer")
     use_case = build_process_summary_use_case()
     retry_policy = RetryPolicy(
@@ -37,9 +74,16 @@ def run_forever(settings: Settings | None = None) -> None:
         logger.info("summary_consumer.stop_requested")
 
     signal.signal(signal.SIGINT, _shutdown_handler)
-    logger.info("summary_consumer.started", queue_url=queue_url)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, _shutdown_handler)
+    logger.info(
+        "summary_consumer.started",
+        queue_url=queue_url,
+        mode="once" if once else "forever",
+        max_empty_polls=max_empty_polls if once else None,
+    )
     while running["value"]:
-        poll_once(
+        has_messages = poll_once(
             sqs_client=sqs_client,
             queue_url=queue_url,
             logger=logger,
@@ -49,6 +93,20 @@ def run_forever(settings: Settings | None = None) -> None:
             visibility_timeout_seconds=cfg.summary_worker_visibility_timeout_seconds,
             max_number_of_messages=1,
         )
+        if not once:
+            continue
+        if has_messages:
+            consecutive_empty_polls = 0
+            continue
+        consecutive_empty_polls += 1
+        logger.info(
+            "summary_consumer.empty_poll",
+            consecutive_empty_polls=consecutive_empty_polls,
+            max_empty_polls=max_empty_polls,
+        )
+        if consecutive_empty_polls >= max_empty_polls:
+            logger.info("summary_consumer.once_complete", max_empty_polls=max_empty_polls)
+            break
     logger.info("summary_consumer.stopped")
 
 
@@ -63,7 +121,7 @@ def poll_once(
     visibility_timeout_seconds: int,
     max_number_of_messages: int = 1,
     sleep_fn: Callable[[float], None] = time.sleep,
-) -> None:
+) -> bool:
     """Poll SQS once and process received messages."""
 
     response = sqs_client.receive_message(
@@ -76,7 +134,7 @@ def poll_once(
     messages = response.get("Messages", [])
     if not messages:
         sleep_fn(0.25)
-        return
+        return False
 
     for message in messages:
         message_id = str(message.get("MessageId", "unknown"))
@@ -102,6 +160,34 @@ def poll_once(
         )
         if should_ack and receipt_handle:
             sqs_client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
+    return True
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse local consumer CLI arguments."""
+
+    parser = argparse.ArgumentParser(description="Local SQS consumer for summary jobs.")
+    parser.add_argument("--once", action="store_true", help="Exit after consecutive empty polls.")
+    parser.add_argument(
+        "--max-empty-polls",
+        type=int,
+        default=_DEFAULT_ONCE_MAX_EMPTY_POLLS,
+        help="Consecutive empty polls before exit in --once mode (default: 2).",
+    )
+    args = parser.parse_args(argv)
+    if args.max_empty_polls < 1:
+        parser.error("--max-empty-polls must be >= 1.")
+    return args
+
+
+def main(argv: list[str] | None = None) -> None:
+    """CLI entrypoint for local consumer."""
+
+    args = _parse_args(argv)
+    if args.once:
+        run_once(max_empty_polls=args.max_empty_polls)
+        return
+    run_forever()
 
 
 def _process_record(
@@ -219,4 +305,4 @@ def _resolve_queue_url(settings: Settings, sqs_client: Any) -> str:
 
 
 if __name__ == "__main__":
-    run_forever()
+    main()

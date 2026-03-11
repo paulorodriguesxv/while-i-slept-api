@@ -6,8 +6,8 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import calendar
+import requests
 import time
-import urllib.request
 from typing import Any, Protocol, cast
 
 from while_i_slept_api.content.models import FeedDefinition, NormalizedFeedEntry
@@ -108,9 +108,12 @@ class RSSFetcher:
 def _default_http_get(url: str) -> bytes:
     """Fetch raw feed bytes."""
 
-    request = urllib.request.Request(url, headers={"User-Agent": "while-i-slept-api/0.1"})
-    with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 - internal infra utility
-        return response.read()
+    response = requests.get(  # noqa: S113 - explicit timeout set for infra utility
+        url,
+        timeout=10,
+        headers={"User-Agent": "while-i-slept-api/0.1"},
+    )
+    return bytes(response.content)
 
 
 def _default_parse_feed(raw_feed: bytes) -> Any:
