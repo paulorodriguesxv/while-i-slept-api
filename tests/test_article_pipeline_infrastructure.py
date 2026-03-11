@@ -365,3 +365,25 @@ def test_dynamo_repo_get_summary_returns_only_done() -> None:
     assert repo.get_summary("h1", 1) == "summary-1"
     assert repo.get_summary("h2", 1) is None
     assert repo.get_summary("missing", 1) is None
+
+
+def test_dynamo_repo_save_and_get_sleep_preferences() -> None:
+    table = _FakeTable()
+    repo = DynamoArticleSummaryRepository(table)
+
+    repo.save_preferences(
+        user_id="usr_1",
+        sleep_time="23:00",
+        wake_time="07:00",
+        timezone="America/Sao_Paulo",
+    )
+
+    loaded = repo.get_preferences("usr_1")
+    missing = repo.get_preferences("usr_missing")
+
+    assert loaded == {
+        "sleep_time": "23:00",
+        "wake_time": "07:00",
+        "timezone": "America/Sao_Paulo",
+    }
+    assert missing is None

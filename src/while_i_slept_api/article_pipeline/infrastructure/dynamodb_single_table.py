@@ -46,6 +46,14 @@ def _date_range(start_date: date, end_date: date) -> list[str]:
     return buckets
 
 
+def _user_pk(user_id: str) -> str:
+    return f"USER#{user_id}"
+
+
+def _sleep_preferences_sk() -> str:
+    return "PREFERENCES#SLEEP"
+
+
 class DynamoArticleSummaryRepository(ArticleSummaryRepository):
     """Single-table writes for RAW, FEED index, and SUMMARY items."""
 
@@ -228,6 +236,47 @@ class DynamoArticleSummaryRepository(ArticleSummaryRepository):
         if summary is None:
             return None
         return str(summary)
+
+    def save_preferences(
+        self,
+        user_id: str,
+        sleep_time: str,
+        wake_time: str,
+        timezone: str,
+    ) -> None:
+        key = {"pk": _user_pk(user_id), "sk": _sleep_preferences_sk()}
+        existing = cast(dict[str, Any] | None, self._table.get_item(Key=key).get("Item"))
+        now = iso_now()
+        created_at = now
+        if existing is not None:
+            created_at = str(existing.get("created_at") or now)
+        self._table.put_item(
+            Item={
+                **key,
+                "sleep_time": sleep_time,
+                "wake_time": wake_time,
+                "timezone": timezone,
+                "created_at": created_at,
+                "updated_at": now,
+            }
+        )
+
+    def get_preferences(self, user_id: str) -> dict[str, str] | None:
+        response = self._table.get_item(
+            Key={
+                "pk": _user_pk(user_id),
+                "sk": _sleep_preferences_sk(),
+            }
+        )
+        item = cast(dict[str, Any] | None, response.get("Item"))
+        if not item:
+            return None
+        normalized = cast(dict[str, Any], _normalize_number(item))
+        return {
+            "sleep_time": str(normalized.get("sleep_time", "")),
+            "wake_time": str(normalized.get("wake_time", "")),
+            "timezone": str(normalized.get("timezone", "")),
+        }
 
     def mark_summary_done(
         self,
