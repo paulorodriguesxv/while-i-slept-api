@@ -8,57 +8,74 @@ import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 
 from while_i_slept_api.api.errors import ApiError
-from while_i_slept_api.article_pipeline.feed_query import (
-    GetSleepWindowFeedUseCase,
-    SleepWindowRequest,
-    SleepWindowResponse,
-)
+from while_i_slept_api.article_pipeline.feed_query import GetSleepWindowFeedUseCase, SleepWindowRequest
+from while_i_slept_api.article_pipeline.feed_query.dto import SleepWindowItem
 from while_i_slept_api.article_pipeline.infrastructure.aws_clients import AwsClientFactory
 from while_i_slept_api.article_pipeline.infrastructure.dynamodb_single_table import DynamoArticleSummaryRepository
+from while_i_slept_api.dependencies.container import get_current_user
+from while_i_slept_api.dependencies.container import get_user_service
+from while_i_slept_api.domain.models import UserProfile
+from while_i_slept_api.services.users import UserService
+from while_i_slept_api.sleep_window.resolver import resolve_last_sleep_window
 
 router = APIRouter(tags=["Feed"])
 
 
 @lru_cache(maxsize=1)
-def build_sleep_window_use_case() -> GetSleepWindowFeedUseCase:
-    """Build sleep-window feed use case with DynamoDB repository."""
+def build_feed_repository() -> DynamoArticleSummaryRepository:
+    """Build repository for feed and preferences queries."""
 
     factory = AwsClientFactory()
-    repository = DynamoArticleSummaryRepository.from_resource(
+    return DynamoArticleSummaryRepository.from_resource(
         factory.dynamodb_resource(),
         table_name=os.getenv("DYNAMO_TABLE_NAME", "articles"),
     )
-    return GetSleepWindowFeedUseCase(repository=repository)
 
 
 def get_sleep_window_use_case() -> GetSleepWindowFeedUseCase:
     """Dependency wrapper for sleep-window feed use case."""
 
-    return build_sleep_window_use_case()
+    return GetSleepWindowFeedUseCase(repository=build_feed_repository())
 
 
-@router.get("/while-i-slept", response_model=SleepWindowResponse)
+class ResolvedSleepWindowResponse(BaseModel):
+    """Serialized resolved sleep window for response payload."""
+
+    start: datetime
+    end: datetime
+
+
+class WhileISleptResponse(BaseModel):
+    """Feed payload for the last completed sleep window."""
+
+    sleep_window: ResolvedSleepWindowResponse
+    items: list[SleepWindowItem]
+
+
+@router.get("/while-i-slept", response_model=WhileISleptResponse)
 def get_sleep_window_feed(
-    language: str,
-    sleep_time: datetime,
-    wake_time: datetime,
-    use_case: Annotated[GetSleepWindowFeedUseCase, Depends(get_sleep_window_use_case)],
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    user_service: Annotated[UserService, Depends(get_user_service)],
+    feed_use_case: Annotated[GetSleepWindowFeedUseCase, Depends(get_sleep_window_use_case)],
     limit: int = Query(default=50, ge=1, le=200),
-) -> SleepWindowResponse:
-    """Return feed items published during the provided sleep window."""
+) -> WhileISleptResponse:
+    """Return feed items for the authenticated user's last completed sleep window."""
 
-    if sleep_time >= wake_time:
-        raise ApiError(
-            status_code=400,
-            code="INVALID_SLEEP_WINDOW",
-            message="sleep_time must be earlier than wake_time.",
-        )
+    profile = user_service.get_required(current_user.user_id)
+    if profile.sleep_window is None:
+        raise ApiError(status_code=404, code="PREFERENCES_NOT_FOUND", message="Sleep preferences not found.")
+    resolved = resolve_last_sleep_window(profile.sleep_window)
     request = SleepWindowRequest(
-        language=language,
-        start_time=sleep_time,
-        end_time=wake_time,
+        language=profile.lang or "pt",
+        start_time=resolved.start,
+        end_time=resolved.end,
         limit=limit,
     )
-    return use_case.execute(request)
+    result = feed_use_case.execute(request)
+    return WhileISleptResponse(
+        sleep_window=ResolvedSleepWindowResponse(start=resolved.start, end=resolved.end),
+        items=result.items,
+    )
