@@ -1,4 +1,8 @@
-"""Typed models for internal content ingestion."""
+"""Typed models for normalized feed ingestion payloads.
+
+These models represent source feed definitions and normalized feed entries
+before article_pipeline write-side persistence.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,7 @@ from datetime import datetime
 
 @dataclass(frozen=True, slots=True)
 class FeedDefinition:
-    """Describes a single RSS/Atom feed source."""
+    """Configuration for one RSS/Atom source endpoint."""
 
     url: str
     source_name: str | None = None
@@ -16,7 +20,7 @@ class FeedDefinition:
 
 @dataclass(frozen=True, slots=True)
 class NormalizedFeedEntry:
-    """Normalized RSS entry used by future editorial/generation layers."""
+    """Normalized feed entry passed into article ingestion use cases."""
 
     language: str
     topic: str

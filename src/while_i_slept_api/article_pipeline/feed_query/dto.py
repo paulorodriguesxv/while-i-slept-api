@@ -1,4 +1,4 @@
-"""DTOs for sleep window feed query."""
+"""DTOs for read-side feed queries over a resolved datetime window."""
 
 from __future__ import annotations
 
@@ -8,7 +8,11 @@ from pydantic import BaseModel, Field
 
 
 class SleepWindowRequest(BaseModel):
-    """Sleep window query request."""
+    """Feed query request for a resolved datetime interval.
+
+    ``start_time``/``end_time`` are concrete datetimes, not user preference
+    values like ``HH:MM``.
+    """
 
     language: str
     start_time: datetime
@@ -17,7 +21,7 @@ class SleepWindowRequest(BaseModel):
 
 
 class SleepWindowItem(BaseModel):
-    """Feed item returned for a sleep window."""
+    """One feed item returned by read-side feed lookup."""
 
     content_hash: str
     title: str
@@ -28,6 +32,6 @@ class SleepWindowItem(BaseModel):
 
 
 class SleepWindowResponse(BaseModel):
-    """Sleep window query response."""
+    """Response envelope for feed window query results."""
 
     items: list[SleepWindowItem]

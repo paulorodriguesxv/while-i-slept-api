@@ -1,4 +1,4 @@
-"""Repository ports for sleep window feed query."""
+"""Read-side repository ports for feed query use cases."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Protocol
 
 
 class FeedQueryRepository(Protocol):
-    """Repository contract for querying feed window and loading summaries."""
+    """Port for FEED-index range queries and summary hydration."""
 
     def query_feed_window(
         self,
@@ -16,11 +16,11 @@ class FeedQueryRepository(Protocol):
         end_time: datetime,
         limit: int,
     ) -> list[dict]:
-        """Query FEED index rows in a sleep window."""
+        """Query FEED index rows in a resolved datetime window."""
 
     def get_summary(
         self,
         content_hash: str,
         summary_version: int,
     ) -> str | None:
-        """Load summary text when status is DONE."""
+        """Load summary text for an article/version when status is DONE."""

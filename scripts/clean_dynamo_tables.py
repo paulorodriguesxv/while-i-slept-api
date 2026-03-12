@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 
 import boto3
+from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+
+_LOGGER = StructuredLogger("while_i_slept.clean_dynamo_tables")
 
 
 def _resolve_region() -> str:
@@ -52,17 +55,17 @@ def main() -> None:
 
     tables = _list_all_tables(dynamodb)
     if not tables:
-        print("No DynamoDB tables found.")
+        _LOGGER.info("No DynamoDB tables found.")
         return
 
     for table_name in tables:
-        print(f"Deleting table: {table_name}")
+        _LOGGER.info(f"Deleting table: {table_name}")
         dynamodb.delete_table(TableName=table_name)
 
     waiter = dynamodb.get_waiter("table_not_exists")
     for table_name in tables:
         waiter.wait(TableName=table_name)
-        print(f"Deleted table: {table_name}")
+        _LOGGER.info(f"Deleted table: {table_name}")
 
 
 if __name__ == "__main__":

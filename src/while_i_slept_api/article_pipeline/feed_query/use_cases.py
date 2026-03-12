@@ -1,4 +1,4 @@
-"""Use cases for sleep window feed query."""
+"""Read-side use case for building the /while-i-slept feed."""
 
 from __future__ import annotations
 
@@ -12,13 +12,13 @@ from while_i_slept_api.article_pipeline.story_dedup.cluster import deduplicate_a
 
 
 class GetSleepWindowFeedUseCase:
-    """Return feed items for a language inside a sleep window."""
+    """Return feed items for a language within a resolved datetime window."""
 
     def __init__(self, repository: FeedQueryRepository):
         self._repository = repository
 
     def execute(self, request: SleepWindowRequest) -> SleepWindowResponse:
-        """Execute sleep window query and hydrate summaries."""
+        """Query FEED index rows, hydrate summaries, and deduplicate stories."""
 
         rows = self._repository.query_feed_window(
             language=request.language,

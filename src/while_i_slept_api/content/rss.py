@@ -1,4 +1,9 @@
-"""RSS fetch/parsing layer (infrastructure-only, no editorial logic)."""
+"""RSS/Atom fetch + normalization for ingestion (infrastructure layer only).
+
+This module is intentionally limited to source retrieval and field
+normalization. It does not perform deduplication, summarization, or feed
+read-side query behavior.
+"""
 
 from __future__ import annotations
 
@@ -28,7 +33,7 @@ class ParsedFeedLike(Protocol):
 
 
 class RSSFetcher:
-    """Fetches and normalizes RSS/Atom entries into internal models."""
+    """Fetch and normalize feed entries for the write-side ingestion flow."""
 
     def __init__(
         self,
@@ -46,7 +51,7 @@ class RSSFetcher:
         topic: str,
         feed: FeedDefinition,
     ) -> list[NormalizedFeedEntry]:
-        """Fetch and normalize entries from a single feed."""
+        """Fetch and normalize entries from one configured feed source."""
 
         raw = self._http_get(feed.url)
         parsed = self._parse_feed(raw)
@@ -64,7 +69,7 @@ class RSSFetcher:
         topic: str,
         feeds: Sequence[FeedDefinition],
     ) -> list[NormalizedFeedEntry]:
-        """Fetch and concatenate entries from multiple feeds."""
+        """Fetch and concatenate entries across multiple feed definitions."""
 
         entries: list[NormalizedFeedEntry] = []
         for feed in feeds:
@@ -79,7 +84,7 @@ class RSSFetcher:
         topic: str,
         feed: FeedDefinition,
     ) -> list[NormalizedFeedEntry]:
-        """Normalize a parsed feed object into internal entries."""
+        """Map parser output into ``NormalizedFeedEntry`` records."""
 
         normalized_entries: list[NormalizedFeedEntry] = []
         for raw_entry in _extract_entries(parsed):

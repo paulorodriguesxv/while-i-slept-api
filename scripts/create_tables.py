@@ -8,6 +8,9 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError
+from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+
+_LOGGER = StructuredLogger("while_i_slept.create_tables")
 
 
 def _env(name: str, default: str | None = None) -> str:
@@ -52,13 +55,13 @@ def _table_exists(client, table_name: str) -> bool:
 def _create_table_if_missing(client, spec: dict[str, Any]) -> None:
     table_name = spec["TableName"]
     if _table_exists(client, table_name):
-        print(f"[skip] table exists: {table_name}")
+        _LOGGER.info(f"[skip] table exists: {table_name}")
         return
 
     client.create_table(**spec)
     waiter = client.get_waiter("table_exists")
     waiter.wait(TableName=table_name)
-    print(f"[ok] created table: {table_name}")
+    _LOGGER.info(f"[ok] created table: {table_name}")
 
 
 def main() -> None:
