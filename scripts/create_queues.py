@@ -6,6 +6,9 @@ import os
 
 import boto3
 from botocore.exceptions import ClientError
+from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+
+_LOGGER = StructuredLogger("while_i_slept.create_queues")
 
 
 def _required_env(name: str, default: str | None = None) -> str:
@@ -29,10 +32,10 @@ def main() -> None:
     queue_url: str | None = None
     try:
         queue_url = sqs.get_queue_url(QueueName=queue_name)["QueueUrl"]
-        print(f"Queue already exists: {queue_name} ({queue_url})")
+        _LOGGER.info(f"Queue already exists: {queue_name} ({queue_url})")
     except sqs.exceptions.QueueDoesNotExist:
         queue_url = sqs.create_queue(QueueName=queue_name)["QueueUrl"]
-        print(f"Queue created: {queue_name} ({queue_url})")
+        _LOGGER.info(f"Queue created: {queue_name} ({queue_url})")
     except ClientError as exc:
         raise RuntimeError(f"Unable to create or fetch queue {queue_name}.") from exc
 

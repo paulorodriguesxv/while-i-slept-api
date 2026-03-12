@@ -12,8 +12,10 @@ from while_i_slept_api.article_pipeline.runtime import build_ingestion_use_case
 from while_i_slept_api.content.registry import FeedRegistry
 from while_i_slept_api.content.rss import RSSFetcher
 from while_i_slept_api.services.utils import iso_now
+from while_i_slept_api.summarizer_worker.logging import StructuredLogger
 
-_LOGGER = logging.getLogger(__name__)
+_INGESTION_LOGGER = logging.getLogger(__name__)
+_LOGGER = StructuredLogger("while_i_slept.fetch_rss")
 
 
 def main() -> None:
@@ -26,7 +28,7 @@ def main() -> None:
     ingestion_use_case = build_ingestion_use_case()
 
     if not feeds:
-        print(f"No feeds configured for language={language}, topic={topic}")
+        _LOGGER.info(f"No feeds configured for language={language}, topic={topic}")
         return
 
     total = 0
@@ -40,7 +42,7 @@ def main() -> None:
             enriched = enrich_article_content(
                 url=source_url,
                 fallback_text=entry.summary or "",
-                logger=_LOGGER,
+                logger=_INGESTION_LOGGER,
             )
             content = enriched.content
             content_hash = compute_content_hash(title=entry.title, content=content)
@@ -66,8 +68,8 @@ def main() -> None:
                 inserted += 1
             else:
                 duplicates += 1
-        print(f"{feed.url}: {len(entries)} entries")
-    print(f"Total entries: {total} | inserted: {inserted} | duplicates: {duplicates}")
+        _LOGGER.info(f"{feed.url}: {len(entries)} entries")
+    _LOGGER.info(f"Total entries: {total} | inserted: {inserted} | duplicates: {duplicates}")
 
 
 if __name__ == "__main__":

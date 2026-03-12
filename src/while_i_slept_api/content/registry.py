@@ -1,4 +1,8 @@
-"""Feed registry: language -> topic -> list of RSS feeds."""
+"""Feed source registry for ingestion.
+
+The registry maps ``language -> topic -> feed definitions`` and is used by the
+content ingestion path to discover RSS sources. It does not query user feeds.
+"""
 
 from __future__ import annotations
 
@@ -17,7 +21,7 @@ class UnsupportedLanguageError(FeedRegistryError):
 
 
 class FeedRegistry:
-    """In-memory registry of allowed feeds per language/topic."""
+    """In-memory map of allowed ingestion sources by language and topic."""
 
     def __init__(
         self,
@@ -35,7 +39,7 @@ class FeedRegistry:
         return tuple(sorted(self._registry))
 
     def resolve(self, language: str, topic: str) -> tuple[FeedDefinition, ...]:
-        """Resolve feeds for a language/topic pair."""
+        """Return feed definitions for one language/topic pair."""
 
         validate_topic(topic)
         language_bucket = self._registry.get(language)

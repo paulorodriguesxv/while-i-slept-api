@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 import os
 from typing import Any, cast
 
-from while_i_slept_api.article_pipeline.keys import article_pk, feed_pk, feed_sk, raw_sk, summary_sk
+from while_i_slept_api.article_pipeline.keys import article_pk, feed_pk, feed_pk_for_date, feed_sk, raw_sk, summary_sk
 from while_i_slept_api.article_pipeline.models import RawArticle, SummaryState
 from while_i_slept_api.article_pipeline.ports import ArticleSummaryRepository
 from while_i_slept_api.services.utils import iso_now
@@ -20,6 +21,37 @@ def _normalize_number(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _normalize_number(item) for key, item in value.items()}
     return value
+
+
+def _to_utc_iso(value: datetime) -> str:
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).replace(microsecond=0).isoformat()
+
+
+def _to_utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).replace(microsecond=0)
+
+
+def _date_range(start_date: date, end_date: date) -> list[str]:
+    if end_date < start_date:
+        return []
+    buckets: list[str] = []
+    current = start_date
+    while current <= end_date:
+        buckets.append(current.isoformat())
+        current += timedelta(days=1)
+    return buckets
+
+
+def _user_pk(user_id: str) -> str:
+    return f"USER#{user_id}"
+
+
+def _sleep_preferences_sk() -> str:
+    return "PREFERENCES#SLEEP"
 
 
 class DynamoArticleSummaryRepository(ArticleSummaryRepository):
@@ -65,8 +97,9 @@ class DynamoArticleSummaryRepository(ArticleSummaryRepository):
             return False
 
     def put_feed_index_item(self, article: RawArticle, *, topic: str) -> None:
+        _ = topic  # kept for compatibility with existing use-case call shape
         item = {
-            "pk": feed_pk(article.language, topic),
+            "pk": feed_pk(article.language, article.published_at),
             "sk": feed_sk(article.published_at, article.content_hash),
             "content_hash": article.content_hash,
             "published_at": article.published_at,
@@ -133,6 +166,117 @@ class DynamoArticleSummaryRepository(ArticleSummaryRepository):
             retry_count=int(normalized.get("retry_count", 0)),
             summary=normalized.get("summary"),
         )
+
+    def query_feed_window(
+        self,
+        language: str,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        start_utc = _to_utc_datetime(start_time)
+        end_utc = _to_utc_datetime(end_time)
+        if end_utc < start_utc:
+            return []
+
+        start = f"T#{_to_utc_iso(start_utc)}"
+        end = f"T#{_to_utc_iso(end_utc)}~"
+        query_limit = max(1, int(limit))
+        date_buckets = _date_range(start_utc.date(), end_utc.date())
+        partition_keys = [feed_pk_for_date(language, bucket) for bucket in date_buckets]
+        partition_keys.append(f"FEED#{language}#all")  # backward-compatible legacy partition
+
+        merged_rows: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for pk in partition_keys:
+            response = self._table.query(
+                KeyConditionExpression="pk = :pk AND sk BETWEEN :start AND :end",
+                ExpressionAttributeValues={
+                    ":pk": pk,
+                    ":start": start,
+                    ":end": end,
+                },
+                Limit=query_limit,
+            )
+            rows = cast(list[dict[str, Any]], response.get("Items", []))
+            for row in rows:
+                normalized = cast(dict[str, Any], _normalize_number(row))
+                content_hash = str(normalized.get("content_hash", ""))
+                if not content_hash or content_hash in seen:
+                    continue
+                seen.add(content_hash)
+                merged_rows.append(
+                    {
+                        "content_hash": content_hash,
+                        "title": normalized.get("title", ""),
+                        "source": normalized.get("source", ""),
+                        "source_url": normalized.get("source_url", ""),
+                        "published_at": normalized.get("published_at"),
+                        "summary_version_default": int(normalized.get("summary_version_default", 1)),
+                    }
+                )
+
+        merged_rows.sort(key=lambda row: str(row.get("published_at", "")))
+        return merged_rows[:query_limit]
+
+    def get_summary(self, content_hash: str, summary_version: int) -> str | None:
+        response = self._table.get_item(
+            Key={
+                "pk": article_pk(content_hash),
+                "sk": summary_sk(summary_version),
+            }
+        )
+        item = cast(dict[str, Any] | None, response.get("Item"))
+        if not item:
+            return None
+        normalized = cast(dict[str, Any], _normalize_number(item))
+        if normalized.get("status") != "DONE":
+            return None
+        summary = normalized.get("summary")
+        if summary is None:
+            return None
+        return str(summary)
+
+    def save_preferences(
+        self,
+        user_id: str,
+        sleep_time: str,
+        wake_time: str,
+        timezone: str,
+    ) -> None:
+        key = {"pk": _user_pk(user_id), "sk": _sleep_preferences_sk()}
+        existing = cast(dict[str, Any] | None, self._table.get_item(Key=key).get("Item"))
+        now = iso_now()
+        created_at = now
+        if existing is not None:
+            created_at = str(existing.get("created_at") or now)
+        self._table.put_item(
+            Item={
+                **key,
+                "sleep_time": sleep_time,
+                "wake_time": wake_time,
+                "timezone": timezone,
+                "created_at": created_at,
+                "updated_at": now,
+            }
+        )
+
+    def get_preferences(self, user_id: str) -> dict[str, str] | None:
+        response = self._table.get_item(
+            Key={
+                "pk": _user_pk(user_id),
+                "sk": _sleep_preferences_sk(),
+            }
+        )
+        item = cast(dict[str, Any] | None, response.get("Item"))
+        if not item:
+            return None
+        normalized = cast(dict[str, Any], _normalize_number(item))
+        return {
+            "sleep_time": str(normalized.get("sleep_time", "")),
+            "wake_time": str(normalized.get("wake_time", "")),
+            "timezone": str(normalized.get("timezone", "")),
+        }
 
     def mark_summary_done(
         self,

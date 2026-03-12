@@ -6,6 +6,9 @@ import os
 
 import boto3
 from botocore.exceptions import ClientError
+from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+
+_LOGGER = StructuredLogger("while_i_slept.purge_queue")
 
 
 def _required_env(name: str, default: str | None = None) -> str:
@@ -32,7 +35,7 @@ def main() -> None:
     except ClientError as exc:
         raise RuntimeError(f"Unable to purge queue {queue_name}.") from exc
 
-    print(f"Queue purged: {queue_name}")
+    _LOGGER.info(f"Queue purged: {queue_name}")
 
 
 if __name__ == "__main__":

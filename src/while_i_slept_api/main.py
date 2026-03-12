@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from while_i_slept_api.api.errors import register_exception_handlers
 from while_i_slept_api.api.routers.auth import router as auth_router
 from while_i_slept_api.api.routers.briefings import router as briefings_router
+from while_i_slept_api.api.routers.feed import router as feed_router
 from while_i_slept_api.api.routers.me import router as me_router
+from while_i_slept_api.api.routers.user_preferences import router as user_preferences_router
 from while_i_slept_api.api.routers.webhooks import router as webhooks_router
 
 origins = ["*"]  # allow all origins for now
@@ -28,6 +30,8 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(me_router)
     app.include_router(briefings_router)
+    app.include_router(feed_router)
+    app.include_router(user_preferences_router)
     app.include_router(webhooks_router)
 
     app.add_middleware(

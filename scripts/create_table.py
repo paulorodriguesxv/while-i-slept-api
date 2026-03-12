@@ -6,6 +6,9 @@ import os
 
 import boto3
 from botocore.exceptions import ClientError
+from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+
+_LOGGER = StructuredLogger("while_i_slept.create_table")
 
 
 def _required_env(name: str, default: str | None = None) -> str:
@@ -28,7 +31,7 @@ def main() -> None:
     dynamodb = boto3.client("dynamodb", region_name=region, endpoint_url=endpoint_url)
     try:
         dynamodb.describe_table(TableName=table_name)
-        print(f"Table already exists: {table_name}")
+        _LOGGER.info(f"Table already exists: {table_name}")
         return
     except dynamodb.exceptions.ResourceNotFoundException:
         pass
@@ -52,7 +55,7 @@ def main() -> None:
     except ClientError as exc:
         raise RuntimeError(f"Unable to create table {table_name}.") from exc
 
-    print(f"Table created: {table_name}")
+    _LOGGER.info(f"Table created: {table_name}")
 
 
 if __name__ == "__main__":
