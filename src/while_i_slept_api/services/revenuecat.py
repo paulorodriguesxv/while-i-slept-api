@@ -7,6 +7,8 @@ from typing import Any
 
 from while_i_slept_api.domain.models import EntitlementState
 from while_i_slept_api.repositories.base import UserRepository
+from while_i_slept_api.repositories.revenuecat_events import RevenueCatEventRepository
+from while_i_slept_api.summarizer_worker.logging import StructuredLogger
 
 
 def _ms_to_iso(ms: int | None) -> str | None:
@@ -18,8 +20,10 @@ def _ms_to_iso(ms: int | None) -> str | None:
 class RevenueCatService:
     """Processes RevenueCat webhook events into user entitlement snapshots."""
 
-    def __init__(self, users: UserRepository) -> None:
+    def __init__(self, users: UserRepository, event_repo: RevenueCatEventRepository) -> None:
         self._users = users
+        self._event_repo = event_repo
+        self._logger = StructuredLogger("while_i_slept.revenuecat")
 
     def process_webhook(self, payload: dict[str, Any]) -> None:
         """Parse webhook payload and update user entitlements if possible."""
@@ -30,6 +34,16 @@ class RevenueCatService:
         event = raw_event if raw_event is not None else payload
         if not isinstance(event, dict):
             return
+
+        event_id_raw = event.get("id")
+        event_id = event_id_raw if isinstance(event_id_raw, str) and event_id_raw else None
+        if event_id is not None:
+            if not self._event_repo.record_event_once(event_id, event):
+                self._logger.info("duplicate_event", event_id=event_id)
+                return
+            self._logger.info("event_recorded", event_id=event_id)
+        else:
+            self._logger.warning("missing_event_id")
 
         app_user_id = event.get("app_user_id") or event.get("original_app_user_id")
         if not isinstance(app_user_id, str) or not app_user_id:

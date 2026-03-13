@@ -24,6 +24,11 @@ from while_i_slept_api.repositories.memory import (
     InMemoryDeviceRepository,
     InMemoryUserRepository,
 )
+from while_i_slept_api.repositories.revenuecat_events import (
+    DynamoRevenueCatEventRepository,
+    InMemoryRevenueCatEventRepository,
+    RevenueCatEventRepository,
+)
 from while_i_slept_api.services.auth import AuthService
 from while_i_slept_api.services.briefings import BriefingService
 from while_i_slept_api.services.entitlements import EntitlementService
@@ -135,7 +140,19 @@ def get_revenuecat_service(
 ) -> RevenueCatService:
     """Build RevenueCat service."""
 
-    return RevenueCatService(repos.users)
+    return RevenueCatService(repos.users, get_revenuecat_event_repository_cached())
+
+
+@lru_cache(maxsize=1)
+def get_revenuecat_event_repository_cached() -> RevenueCatEventRepository:
+    """Build and cache RevenueCat event idempotency repository."""
+
+    settings = get_settings()
+    repo_backend = (os.getenv("REPO_BACKEND") or settings.storage_backend or "memory").lower()
+    if repo_backend == "dynamodb":
+        factory = DynamoTableFactory(settings)
+        return DynamoRevenueCatEventRepository(factory.users())
+    return InMemoryRevenueCatEventRepository()
 
 
 def get_current_user(

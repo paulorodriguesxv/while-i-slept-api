@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any, cast
 
 from while_i_slept_api.domain.models import EntitlementState
+from while_i_slept_api.repositories.memory import InMemoryUserRepository
+from while_i_slept_api.repositories.revenuecat_events import InMemoryRevenueCatEventRepository
 from while_i_slept_api.services.revenuecat import RevenueCatService, _ms_to_iso
 
 
@@ -123,3 +125,78 @@ def test_revenuecat_ignores_invalid_payload_shapes(
 
 def test_revenuecat_ignores_non_dict_top_level_payload(revenuecat_service: RevenueCatService) -> None:
     revenuecat_service.process_webhook(cast(dict[str, Any], "not-a-dict"))
+
+
+class _ToggleEventRepo:
+    def __init__(self) -> None:
+        self._calls = 0
+
+    def record_event_once(self, event_id: str, payload: dict[str, Any]) -> bool:
+        _ = event_id
+        _ = payload
+        self._calls += 1
+        return self._calls == 1
+
+
+class _CountingUserRepository(InMemoryUserRepository):
+    def __init__(self) -> None:
+        super().__init__()
+        self.update_calls = 0
+
+    def update_entitlements(self, user_id: str, entitlements: EntitlementState):
+        self.update_calls += 1
+        return super().update_entitlements(user_id, entitlements)
+
+
+def test_duplicate_event_is_ignored(make_user) -> None:
+    user_repo = _CountingUserRepository()
+    event_repo = _ToggleEventRepo()
+    service = RevenueCatService(user_repo, event_repo)
+    user = make_user(user_id="usr_rc_dup", premium=False)
+    user_repo.save(user)
+    payload = {
+        "event": {
+            "id": "evt_123",
+            "app_user_id": user.user_id,
+            "type": "INITIAL_PURCHASE",
+            "store": "APP_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1760000000000,
+        }
+    }
+
+    service.process_webhook(payload)
+    first = user_repo.get_by_id(user.user_id)
+    service.process_webhook(payload)
+    second = user_repo.get_by_id(user.user_id)
+
+    assert first is not None and second is not None
+    assert first.entitlements.premium is True
+    assert second.entitlements == first.entitlements
+    assert user_repo.update_calls == 1
+
+
+def test_duplicate_event_is_ignored_with_in_memory_event_repo(make_user) -> None:
+    user_repo = _CountingUserRepository()
+    event_repo = InMemoryRevenueCatEventRepository()
+    service = RevenueCatService(user_repo, event_repo)
+    user = make_user(user_id="usr_rc_dup_mem", premium=False)
+    user_repo.save(user)
+    payload = {
+        "event": {
+            "id": "evt_mem_1",
+            "app_user_id": user.user_id,
+            "type": "INITIAL_PURCHASE",
+            "store": "APP_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1760000000000,
+        }
+    }
+
+    service.process_webhook(payload)
+    service.process_webhook(payload)
+    updated = user_repo.get_by_id(user.user_id)
+
+    assert updated is not None
+    assert updated.entitlements.premium is True
+    assert user_repo.update_calls == 1
