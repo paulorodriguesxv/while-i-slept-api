@@ -134,12 +134,43 @@ class DynamoUserRepository(UserRepository):
         return user
 
     def update_entitlements(self, user_id: str, entitlements: EntitlementState) -> UserProfile | None:
-        user = self.get_by_id(user_id)
-        if user is None:
+        updated_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        conditional_check_failed = self._table.meta.client.exceptions.ConditionalCheckFailedException
+        try:
+            response = self._table.update_item(
+                Key={"pk": f"USER#{user_id}", "sk": "PROFILE"},
+                UpdateExpression=(
+                    "SET premium_active = :premium_active, "
+                    "premium_expires_at = :premium_expires_at, "
+                    "premium_product_id = :premium_product_id, "
+                    "premium_store = :premium_store, "
+                    "premium_last_event_id = :premium_last_event_id, "
+                    "premium_last_event_type = :premium_last_event_type, "
+                    "premium_last_event_at = :premium_last_event_at, "
+                    "premium_environment = :premium_environment, "
+                    "updated_at = :updated_at"
+                ),
+                ExpressionAttributeValues={
+                    ":premium_active": entitlements.premium,
+                    ":premium_expires_at": entitlements.expires_at,
+                    ":premium_product_id": entitlements.product_id,
+                    ":premium_store": entitlements.store,
+                    ":premium_last_event_id": entitlements.last_event_id,
+                    ":premium_last_event_type": entitlements.last_event_type,
+                    ":premium_last_event_at": _to_iso_utc(entitlements.last_event_at),
+                    ":premium_environment": entitlements.environment,
+                    ":updated_at": updated_at,
+                },
+                ConditionExpression="attribute_exists(pk) AND attribute_exists(sk)",
+                ReturnValues="ALL_NEW",
+            )
+        except conditional_check_failed:
             return None
-        user.entitlements = entitlements
-        self.save(user)
-        return user
+
+        item = response.get("Attributes")
+        if not item:
+            return self.get_by_id(user_id)
+        return self._from_item(cast(dict[str, Any], item))
 
     def _to_item(self, user: UserProfile) -> dict[str, Any]:
         return {

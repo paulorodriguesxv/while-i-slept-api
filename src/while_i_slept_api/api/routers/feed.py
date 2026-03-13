@@ -23,6 +23,20 @@ from while_i_slept_api.sleep_window.resolver import resolve_last_sleep_window
 
 router = APIRouter(tags=["Feed"])
 
+FREE_FEED_LIMIT = 3
+PREMIUM_MAX_FEED_LIMIT = 25
+DEFAULT_FEED_LIMIT = 50
+
+
+def resolve_effective_feed_limit(requested_limit: int | None, *, is_premium: bool) -> int:
+    """Resolve a safe feed query limit based on entitlement tier."""
+
+    candidate = requested_limit if requested_limit is not None else DEFAULT_FEED_LIMIT
+    if candidate < 1:
+        candidate = 1
+    cap = PREMIUM_MAX_FEED_LIMIT if is_premium else FREE_FEED_LIMIT
+    return min(candidate, cap)
+
 
 @lru_cache(maxsize=1)
 def build_feed_repository() -> DynamoArticleSummaryRepository:
@@ -60,7 +74,7 @@ def get_sleep_window_feed(
     current_user: Annotated[UserProfile, Depends(get_current_user)],
     user_service: Annotated[UserService, Depends(get_user_service)],
     feed_use_case: Annotated[GetSleepWindowFeedUseCase, Depends(get_sleep_window_use_case)],
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=DEFAULT_FEED_LIMIT, ge=1, le=200),
 ) -> WhileISleptResponse:
     """Return feed items for the authenticated user's last completed sleep window."""
 
@@ -68,11 +82,12 @@ def get_sleep_window_feed(
     if profile.sleep_window is None:
         raise ApiError(status_code=404, code="PREFERENCES_NOT_FOUND", message="Sleep preferences not found.")
     resolved = resolve_last_sleep_window(profile.sleep_window)
+    effective_limit = resolve_effective_feed_limit(limit, is_premium=profile.entitlements.premium)
     request = SleepWindowRequest(
         language=profile.lang or "pt",
         start_time=resolved.start,
         end_time=resolved.end,
-        limit=limit,
+        limit=effective_limit,
     )
     result = feed_use_case.execute(request)
     return WhileISleptResponse(
