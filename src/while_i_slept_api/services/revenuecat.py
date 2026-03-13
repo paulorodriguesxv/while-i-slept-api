@@ -37,6 +37,20 @@ def _ms_to_iso(ms: int | None) -> str | None:
     return datetime.fromtimestamp(ms / 1000, tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _to_ms(value: Any) -> int | None:
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _ms_to_datetime(ms: int | None) -> datetime | None:
+    if ms is None:
+        return None
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).replace(microsecond=0)
+
+
 class RevenueCatService:
     """Processes RevenueCat webhook events into user entitlement snapshots."""
 
@@ -90,6 +104,30 @@ class RevenueCatService:
         elif isinstance(event.get("expires_date"), str):
             expires_at = event["expires_date"]
 
+        event_timestamp_ms = _to_ms(event.get("event_timestamp_ms"))
+        event_at = _ms_to_datetime(event_timestamp_ms)
+        environment_raw = event.get("environment")
+        environment = environment_raw if isinstance(environment_raw, str) and environment_raw else None
+        event_type_value = event_type or None
+
+        def _with_metadata(
+            *,
+            premium: bool,
+            expires_at_value: str | None,
+            product_id_value: str | None,
+            store_value: str | None,
+        ) -> EntitlementState:
+            return EntitlementState(
+                premium=premium,
+                expires_at=expires_at_value,
+                product_id=product_id_value,
+                store=store_value,
+                last_event_id=event_id,
+                last_event_type=event_type_value,
+                last_event_at=event_at,
+                environment=environment,
+            )
+
         if event_type in ACTIVATION_EVENTS:
             self._logger.info(
                 "activation_event",
@@ -97,11 +135,11 @@ class RevenueCatService:
                 app_user_id=user.user_id,
             )
             product_id = event.get("product_id")
-            entitlements = EntitlementState(
+            entitlements = _with_metadata(
                 premium=True,
-                expires_at=expires_at or user.entitlements.expires_at,
-                product_id=product_id if isinstance(product_id, str) else user.entitlements.product_id,
-                store=store or user.entitlements.store,
+                expires_at_value=expires_at or user.entitlements.expires_at,
+                product_id_value=product_id if isinstance(product_id, str) else user.entitlements.product_id,
+                store_value=store or user.entitlements.store,
             )
             self._users.update_entitlements(user.user_id, entitlements)
             return
@@ -112,11 +150,11 @@ class RevenueCatService:
                 event_type=event_type,
                 app_user_id=user.user_id,
             )
-            entitlements = EntitlementState(
+            entitlements = _with_metadata(
                 premium=False,
-                expires_at=None,
-                product_id=user.entitlements.product_id,
-                store=user.entitlements.store,
+                expires_at_value=None,
+                product_id_value=user.entitlements.product_id,
+                store_value=user.entitlements.store,
             )
             self._users.update_entitlements(user.user_id, entitlements)
             return
@@ -127,6 +165,13 @@ class RevenueCatService:
                 event_type=event_type,
                 app_user_id=user.user_id,
             )
+            entitlements = _with_metadata(
+                premium=user.entitlements.premium,
+                expires_at_value=user.entitlements.expires_at,
+                product_id_value=user.entitlements.product_id,
+                store_value=user.entitlements.store,
+            )
+            self._users.update_entitlements(user.user_id, entitlements)
             return
 
         self._logger.info(
@@ -134,3 +179,10 @@ class RevenueCatService:
             event_type=event_type,
             app_user_id=user.user_id,
         )
+        entitlements = _with_metadata(
+            premium=user.entitlements.premium,
+            expires_at_value=user.entitlements.expires_at,
+            product_id_value=user.entitlements.product_id,
+            store_value=user.entitlements.store,
+        )
+        self._users.update_entitlements(user.user_id, entitlements)

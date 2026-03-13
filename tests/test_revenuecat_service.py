@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from while_i_slept_api.domain.models import EntitlementState
@@ -71,12 +72,14 @@ def test_cancellation_does_not_remove_premium(
     updated = user_repo.get_by_id(user.user_id)
 
     assert updated is not None
-    assert updated.entitlements == EntitlementState(
-        premium=True,
-        expires_at="2099-01-01T00:00:00Z",
-        product_id="old_product",
-        store="apple",
-    )
+    assert updated.entitlements.premium is True
+    assert updated.entitlements.expires_at == "2099-01-01T00:00:00Z"
+    assert updated.entitlements.product_id == "old_product"
+    assert updated.entitlements.store == "apple"
+    assert updated.entitlements.last_event_id is None
+    assert updated.entitlements.last_event_type == "CANCELLATION"
+    assert updated.entitlements.last_event_at is None
+    assert updated.entitlements.environment is None
 
 
 def test_billing_issue_does_not_remove_premium(
@@ -104,12 +107,14 @@ def test_billing_issue_does_not_remove_premium(
     updated = user_repo.get_by_id(user.user_id)
 
     assert updated is not None
-    assert updated.entitlements == EntitlementState(
-        premium=True,
-        expires_at="2099-02-01T00:00:00Z",
-        product_id="monthly_premium",
-        store="google",
-    )
+    assert updated.entitlements.premium is True
+    assert updated.entitlements.expires_at == "2099-02-01T00:00:00Z"
+    assert updated.entitlements.product_id == "monthly_premium"
+    assert updated.entitlements.store == "google"
+    assert updated.entitlements.last_event_id is None
+    assert updated.entitlements.last_event_type == "BILLING_ISSUE"
+    assert updated.entitlements.last_event_at is None
+    assert updated.entitlements.environment is None
 
 
 def test_expiration_revokes_premium(
@@ -138,12 +143,14 @@ def test_expiration_revokes_premium(
     updated = user_repo.get_by_id(user.user_id)
 
     assert updated is not None
-    assert updated.entitlements == EntitlementState(
-        premium=False,
-        expires_at=None,
-        product_id="monthly_premium",
-        store="apple",
-    )
+    assert updated.entitlements.premium is False
+    assert updated.entitlements.expires_at is None
+    assert updated.entitlements.product_id == "monthly_premium"
+    assert updated.entitlements.store == "apple"
+    assert updated.entitlements.last_event_id is None
+    assert updated.entitlements.last_event_type == "EXPIRATION"
+    assert updated.entitlements.last_event_at is None
+    assert updated.entitlements.environment is None
 
 
 def test_renewal_extends_premium(
@@ -201,12 +208,82 @@ def test_revenuecat_unknown_event_preserves_existing_premium_and_store(
     updated = user_repo.get_by_id(user.user_id)
 
     assert updated is not None
-    assert updated.entitlements == EntitlementState(
-        premium=True,
-        expires_at="2026-04-01T00:00:00Z",
-        product_id="prod_1",
-        store="apple",
-    )
+    assert updated.entitlements.premium is True
+    assert updated.entitlements.expires_at == "2026-04-01T00:00:00Z"
+    assert updated.entitlements.product_id == "prod_1"
+    assert updated.entitlements.store == "apple"
+    assert updated.entitlements.last_event_type == "SOMETHING_ELSE"
+
+
+def test_event_metadata_is_persisted(
+    revenuecat_service: RevenueCatService,
+    make_user,
+    user_repo,
+) -> None:
+    user = make_user(user_id="usr_rc_metadata", premium=False)
+    payload = {
+        "event": {
+            "id": "evt_meta_1",
+            "app_user_id": user.user_id,
+            "type": "INITIAL_PURCHASE",
+            "store": "APP_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1770000000000,
+            "event_timestamp_ms": 1765000000000,
+            "environment": "PRODUCTION",
+        }
+    }
+
+    revenuecat_service.process_webhook(payload)
+    updated = user_repo.get_by_id(user.user_id)
+
+    assert updated is not None
+    assert updated.entitlements.last_event_id == "evt_meta_1"
+    assert updated.entitlements.last_event_type == "INITIAL_PURCHASE"
+    assert updated.entitlements.last_event_at == datetime.fromtimestamp(1765000000000 / 1000, tz=UTC)
+    assert updated.entitlements.environment == "PRODUCTION"
+
+
+def test_metadata_updated_on_second_event(
+    revenuecat_service: RevenueCatService,
+    make_user,
+    user_repo,
+) -> None:
+    user = make_user(user_id="usr_rc_metadata_second", premium=False)
+    first_payload = {
+        "event": {
+            "id": "evt_meta_first",
+            "app_user_id": user.user_id,
+            "type": "INITIAL_PURCHASE",
+            "store": "APP_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1770000000000,
+            "event_timestamp_ms": 1765000000000,
+            "environment": "SANDBOX",
+        }
+    }
+    second_payload = {
+        "event": {
+            "id": "evt_meta_second",
+            "app_user_id": user.user_id,
+            "type": "RENEWAL",
+            "store": "PLAY_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1780000000000,
+            "event_timestamp_ms": 1766000000000,
+            "environment": "PRODUCTION",
+        }
+    }
+
+    revenuecat_service.process_webhook(first_payload)
+    revenuecat_service.process_webhook(second_payload)
+    updated = user_repo.get_by_id(user.user_id)
+
+    assert updated is not None
+    assert updated.entitlements.last_event_id == "evt_meta_second"
+    assert updated.entitlements.last_event_type == "RENEWAL"
+    assert updated.entitlements.last_event_at == datetime.fromtimestamp(1766000000000 / 1000, tz=UTC)
+    assert updated.entitlements.environment == "PRODUCTION"
 
 
 def test_revenuecat_ignores_invalid_payload_shapes(

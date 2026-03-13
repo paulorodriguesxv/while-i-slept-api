@@ -5,6 +5,7 @@ This module keeps all boto3 access out of routers/services.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from dataclasses import asdict
 from decimal import Decimal
 import os
@@ -35,6 +36,30 @@ def _normalize_number(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _normalize_number(item) for key, item in value.items()}
     return value
+
+
+def _to_iso_utc(value: datetime | None) -> str | None:
+    """Serialize datetime into UTC ISO8601 with Z suffix."""
+
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _from_iso_utc(value: Any) -> datetime | None:
+    """Parse UTC ISO8601 datetime strings from persistence storage."""
+
+    if not isinstance(value, str) or not value:
+        return None
+    parsed = value
+    if parsed.endswith("Z"):
+        parsed = parsed[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(parsed)
+    except ValueError:
+        return None
 
 
 class DynamoTableFactory:
@@ -139,6 +164,10 @@ class DynamoUserRepository(UserRepository):
             "premium_expires_at": user.entitlements.expires_at,
             "premium_product_id": user.entitlements.product_id,
             "premium_store": user.entitlements.store,
+            "premium_last_event_id": user.entitlements.last_event_id,
+            "premium_last_event_type": user.entitlements.last_event_type,
+            "premium_last_event_at": _to_iso_utc(user.entitlements.last_event_at),
+            "premium_environment": user.entitlements.environment,
             "created_at": user.created_at,
             "updated_at": user.updated_at,
             "GSI1PK": f"IDP#{user.provider}#{user.provider_user_id}",
@@ -179,6 +208,10 @@ class DynamoUserRepository(UserRepository):
                 expires_at=normalized.get("premium_expires_at"),
                 product_id=normalized.get("premium_product_id"),
                 store=normalized.get("premium_store"),
+                last_event_id=normalized.get("premium_last_event_id"),
+                last_event_type=normalized.get("premium_last_event_type"),
+                last_event_at=_from_iso_utc(normalized.get("premium_last_event_at")),
+                environment=normalized.get("premium_environment"),
             ),
             created_at=normalized.get("created_at", ""),
             updated_at=normalized.get("updated_at", ""),
