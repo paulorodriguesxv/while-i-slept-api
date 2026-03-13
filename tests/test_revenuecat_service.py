@@ -23,6 +23,7 @@ def test_revenuecat_positive_event_updates_entitlements_and_is_idempotent(
     user = make_user(user_id="usr_rc_positive", premium=False)
     payload = {
         "event": {
+            "id": "evt_positive_1",
             "app_user_id": user.user_id,
             "type": "INITIAL_PURCHASE",
             "store": "APP_STORE",
@@ -44,34 +45,137 @@ def test_revenuecat_positive_event_updates_entitlements_and_is_idempotent(
     assert second.entitlements == first.entitlements
 
 
-def test_revenuecat_negative_event_updates_google_store_and_expires_date(
+def test_cancellation_does_not_remove_premium(
     revenuecat_service: RevenueCatService,
     make_user,
     user_repo,
 ) -> None:
     user = make_user(
-        user_id="usr_rc_negative",
+        user_id="usr_rc_cancel",
         premium=True,
         expires_at="2099-01-01T00:00:00Z",
         product_id="old_product",
         store="apple",
     )
     payload = {
-        "app_user_id": user.user_id,
-        "type": "EXPIRATION",
-        "store": "PLAY_STORE",
-        "product_id": "monthly_premium",
-        "expires_date": "2026-03-01T00:00:00Z",
+        "event": {
+            "app_user_id": user.user_id,
+            "type": "CANCELLATION",
+            "store": "PLAY_STORE",
+            "product_id": "monthly_premium",
+            "expires_date": "2026-03-01T00:00:00Z",
+        }
     }
 
     revenuecat_service.process_webhook(payload)
     updated = user_repo.get_by_id(user.user_id)
 
     assert updated is not None
-    assert updated.entitlements.premium is False
-    assert updated.entitlements.store == "google"
-    assert updated.entitlements.expires_at == "2026-03-01T00:00:00Z"
+    assert updated.entitlements == EntitlementState(
+        premium=True,
+        expires_at="2099-01-01T00:00:00Z",
+        product_id="old_product",
+        store="apple",
+    )
+
+
+def test_billing_issue_does_not_remove_premium(
+    revenuecat_service: RevenueCatService,
+    make_user,
+    user_repo,
+) -> None:
+    user = make_user(
+        user_id="usr_rc_billing_issue",
+        premium=True,
+        expires_at="2099-02-01T00:00:00Z",
+        product_id="monthly_premium",
+        store="google",
+    )
+    payload = {
+        "event": {
+            "app_user_id": user.user_id,
+            "type": "BILLING_ISSUE",
+            "store": "PLAY_STORE",
+            "product_id": "monthly_premium",
+        }
+    }
+
+    revenuecat_service.process_webhook(payload)
+    updated = user_repo.get_by_id(user.user_id)
+
+    assert updated is not None
+    assert updated.entitlements == EntitlementState(
+        premium=True,
+        expires_at="2099-02-01T00:00:00Z",
+        product_id="monthly_premium",
+        store="google",
+    )
+
+
+def test_expiration_revokes_premium(
+    revenuecat_service: RevenueCatService,
+    make_user,
+    user_repo,
+) -> None:
+    user = make_user(
+        user_id="usr_rc_expiration",
+        premium=True,
+        expires_at="2099-03-01T00:00:00Z",
+        product_id="monthly_premium",
+        store="apple",
+    )
+    payload = {
+        "event": {
+            "app_user_id": user.user_id,
+            "type": "EXPIRATION",
+            "store": "PLAY_STORE",
+            "product_id": "another_product",
+            "expiration_at_ms": 1760000000000,
+        }
+    }
+
+    revenuecat_service.process_webhook(payload)
+    updated = user_repo.get_by_id(user.user_id)
+
+    assert updated is not None
+    assert updated.entitlements == EntitlementState(
+        premium=False,
+        expires_at=None,
+        product_id="monthly_premium",
+        store="apple",
+    )
+
+
+def test_renewal_extends_premium(
+    revenuecat_service: RevenueCatService,
+    make_user,
+    user_repo,
+) -> None:
+    user = make_user(
+        user_id="usr_rc_renewal",
+        premium=True,
+        expires_at="2026-01-01T00:00:00Z",
+        product_id="old_product",
+        store="apple",
+    )
+    payload = {
+        "event": {
+            "app_user_id": user.user_id,
+            "type": "RENEWAL",
+            "store": "PLAY_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1770000000000,
+        }
+    }
+
+    revenuecat_service.process_webhook(payload)
+    updated = user_repo.get_by_id(user.user_id)
+
+    assert updated is not None
+    assert updated.entitlements.premium is True
+    assert updated.entitlements.expires_at == _ms_to_iso(1770000000000)
     assert updated.entitlements.product_id == "monthly_premium"
+    assert updated.entitlements.store == "google"
 
 
 def test_revenuecat_unknown_event_preserves_existing_premium_and_store(

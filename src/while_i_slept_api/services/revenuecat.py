@@ -10,6 +10,26 @@ from while_i_slept_api.repositories.base import UserRepository
 from while_i_slept_api.repositories.revenuecat_events import RevenueCatEventRepository
 from while_i_slept_api.summarizer_worker.logging import StructuredLogger
 
+ACTIVATION_EVENTS = {
+    "INITIAL_PURCHASE",
+    "RENEWAL",
+    "NON_RENEWING_PURCHASE",
+    "UNCANCELLATION",
+    "SUBSCRIPTION_EXTENDED",
+}
+NON_STATE_EVENTS = {
+    "CANCELLATION",
+    "BILLING_ISSUE",
+    "PRODUCT_CHANGE",
+    "TRANSFER",
+    "TEMPORARY_ENTITLEMENT_GRANT",
+}
+REVOCATION_EVENTS = {
+    "EXPIRATION",
+    "REFUND",
+    "SUBSCRIPTION_PAUSED",
+}
+
 
 def _ms_to_iso(ms: int | None) -> str | None:
     if ms is None:
@@ -70,30 +90,47 @@ class RevenueCatService:
         elif isinstance(event.get("expires_date"), str):
             expires_at = event["expires_date"]
 
-        positive_types = {
-            "INITIAL_PURCHASE",
-            "RENEWAL",
-            "NON_RENEWING_PURCHASE",
-            "UNCANCELLATION",
-            "SUBSCRIPTION_EXTENDED",
-        }
-        negative_types = {
-            "EXPIRATION",
-            "CANCELLATION",
-            "BILLING_ISSUE",
-            "PRODUCT_CHANGE",
-        }
-        if event_type in positive_types:
-            premium = True
-        elif event_type in negative_types:
-            premium = False
-        else:
-            premium = user.entitlements.premium
+        if event_type in ACTIVATION_EVENTS:
+            self._logger.info(
+                "activation_event",
+                event_type=event_type,
+                app_user_id=user.user_id,
+            )
+            product_id = event.get("product_id")
+            entitlements = EntitlementState(
+                premium=True,
+                expires_at=expires_at or user.entitlements.expires_at,
+                product_id=product_id if isinstance(product_id, str) else user.entitlements.product_id,
+                store=store or user.entitlements.store,
+            )
+            self._users.update_entitlements(user.user_id, entitlements)
+            return
 
-        entitlements = EntitlementState(
-            premium=premium,
-            expires_at=expires_at or user.entitlements.expires_at,
-            product_id=event.get("product_id") if isinstance(event.get("product_id"), str) else user.entitlements.product_id,
-            store=store or user.entitlements.store,
+        if event_type in REVOCATION_EVENTS:
+            self._logger.info(
+                "revocation_event",
+                event_type=event_type,
+                app_user_id=user.user_id,
+            )
+            entitlements = EntitlementState(
+                premium=False,
+                expires_at=None,
+                product_id=user.entitlements.product_id,
+                store=user.entitlements.store,
+            )
+            self._users.update_entitlements(user.user_id, entitlements)
+            return
+
+        if event_type in NON_STATE_EVENTS:
+            self._logger.info(
+                "non_state_event",
+                event_type=event_type,
+                app_user_id=user.user_id,
+            )
+            return
+
+        self._logger.info(
+            "unknown_event_type",
+            event_type=event_type,
+            app_user_id=user.user_id,
         )
-        self._users.update_entitlements(user.user_id, entitlements)
