@@ -286,6 +286,65 @@ def test_metadata_updated_on_second_event(
     assert updated.entitlements.environment == "PRODUCTION"
 
 
+def test_sandbox_event_ignored_in_production(make_user, monkeypatch) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    user_repo = InMemoryUserRepository()
+    event_repo = InMemoryRevenueCatEventRepository()
+    service = RevenueCatService(user_repo, event_repo)
+    user = make_user(user_id="usr_rc_sandbox_prod", premium=False)
+    user_repo.save(user)
+    before = user_repo.get_by_id(user.user_id)
+    payload = {
+        "event": {
+            "id": "evt_sandbox_prod",
+            "app_user_id": user.user_id,
+            "type": "INITIAL_PURCHASE",
+            "store": "APP_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1770000000000,
+            "event_timestamp_ms": 1765000000000,
+            "environment": "SANDBOX",
+        }
+    }
+
+    service.process_webhook(payload)
+    after = user_repo.get_by_id(user.user_id)
+
+    assert before is not None and after is not None
+    assert after.entitlements == before.entitlements
+
+
+def test_sandbox_event_processed_in_development(make_user, monkeypatch) -> None:
+    monkeypatch.setenv("APP_ENV", "development")
+    user_repo = InMemoryUserRepository()
+    event_repo = InMemoryRevenueCatEventRepository()
+    service = RevenueCatService(user_repo, event_repo)
+    user = make_user(user_id="usr_rc_sandbox_dev", premium=False)
+    user_repo.save(user)
+    payload = {
+        "event": {
+            "id": "evt_sandbox_dev",
+            "app_user_id": user.user_id,
+            "type": "INITIAL_PURCHASE",
+            "store": "APP_STORE",
+            "product_id": "monthly_premium",
+            "expiration_at_ms": 1770000000000,
+            "event_timestamp_ms": 1765000000000,
+            "environment": "SANDBOX",
+        }
+    }
+
+    service.process_webhook(payload)
+    updated = user_repo.get_by_id(user.user_id)
+
+    assert updated is not None
+    assert updated.entitlements.premium is True
+    assert updated.entitlements.last_event_id == "evt_sandbox_dev"
+    assert updated.entitlements.last_event_type == "INITIAL_PURCHASE"
+    assert updated.entitlements.last_event_at == datetime.fromtimestamp(1765000000000 / 1000, tz=UTC)
+    assert updated.entitlements.environment == "SANDBOX"
+
+
 def test_revenuecat_ignores_invalid_payload_shapes(
     revenuecat_service: RevenueCatService,
     make_user,

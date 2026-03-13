@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import os
 from typing import Any
 
 from while_i_slept_api.domain.models import EntitlementState
@@ -69,8 +70,22 @@ class RevenueCatService:
         if not isinstance(event, dict):
             return
 
+        event_type = str(event.get("type", "")).upper()
+        environment_raw = event.get("environment")
+        environment = environment_raw if isinstance(environment_raw, str) and environment_raw else None
+        app_env = os.getenv("APP_ENV", "development").lower()
         event_id_raw = event.get("id")
         event_id = event_id_raw if isinstance(event_id_raw, str) and event_id_raw else None
+
+        if app_env == "production" and environment == "SANDBOX":
+            self._logger.info(
+                "sandbox_event_ignored",
+                event_id=event_id,
+                event_type=event_type or None,
+                environment=environment,
+            )
+            return
+
         if event_id is not None:
             if not self._event_repo.record_event_once(event_id, event):
                 self._logger.info("duplicate_event", event_id=event_id)
@@ -87,7 +102,6 @@ class RevenueCatService:
         if user is None:
             return
 
-        event_type = str(event.get("type", "")).upper()
         store_raw = str(event.get("store", "")).lower()
         store: str | None
         if "app" in store_raw or store_raw == "apple":
@@ -106,8 +120,6 @@ class RevenueCatService:
 
         event_timestamp_ms = _to_ms(event.get("event_timestamp_ms"))
         event_at = _ms_to_datetime(event_timestamp_ms)
-        environment_raw = event.get("environment")
-        environment = environment_raw if isinstance(environment_raw, str) and environment_raw else None
         event_type_value = event_type or None
 
         def _with_metadata(
