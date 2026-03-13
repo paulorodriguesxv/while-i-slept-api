@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -28,6 +29,10 @@ class EntitlementState:
     expires_at: str | None = None
     product_id: str | None = None
     store: Store = None
+    last_event_id: str | None = None
+    last_event_type: str | None = None
+    last_event_at: datetime | None = None
+    environment: str | None = None
 
 
 @dataclass(slots=True)
@@ -125,4 +130,3 @@ class OAuthIdentity:
     provider_user_id: str
     email: str | None
     name: str | None
-

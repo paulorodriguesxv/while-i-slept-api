@@ -13,6 +13,7 @@ from while_i_slept_api.repositories.memory import (
     InMemoryDeviceRepository,
     InMemoryUserRepository,
 )
+from while_i_slept_api.repositories.revenuecat_events import InMemoryRevenueCatEventRepository
 from while_i_slept_api.services.auth import AuthService
 from while_i_slept_api.services.briefings import BriefingService
 from while_i_slept_api.services.entitlements import EntitlementService
@@ -93,7 +94,7 @@ def briefing_service(
 
 @pytest.fixture
 def revenuecat_service(user_repo: InMemoryUserRepository) -> RevenueCatService:
-    return RevenueCatService(user_repo)
+    return RevenueCatService(user_repo, InMemoryRevenueCatEventRepository())
 
 
 @pytest.fixture

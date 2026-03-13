@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi.testclient import TestClient
 import pytest
+
+pytest.importorskip("httpx")
+from fastapi.testclient import TestClient
 
 from while_i_slept_api.api.routers import feed as feed_router
 from while_i_slept_api.article_pipeline.feed_query.dto import SleepWindowRequest, SleepWindowResponse
 from while_i_slept_api.dependencies.container import get_current_user
+from while_i_slept_api.domain.models import EntitlementState
 from while_i_slept_api.domain.models import SleepWindow as UserSleepWindow
 from while_i_slept_api.domain.models import UserProfile
 from while_i_slept_api.main import create_app
@@ -104,6 +107,9 @@ def test_authenticated_user_receives_sleep_window_feed(client_factory) -> None:
     assert payload["items"][0]["content_hash"] == "h1"
     assert payload["sleep_window"]["start"].startswith("2026-03-10T23:30:00")
     assert payload["sleep_window"]["end"].startswith("2026-03-11T07:00:00")
+    assert payload["meta"]["is_premium"] is False
+    assert payload["meta"]["applied_limit"] == 3
+    assert payload["meta"]["truncated_for_free_tier"] is False
     assert len(fake_feed.calls) == 1
     assert fake_feed.calls[0].limit == 3
     assert fake_feed.calls[0].language == "en"
@@ -143,3 +149,171 @@ def test_while_i_slept_extracts_user_id_from_authenticated_user(client_factory) 
 
     assert response.status_code == 200
     assert fake_user_service.calls == ["usr_from_token"]
+
+
+def test_free_user_limit_is_capped(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_free_cap", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=False)
+    user_service = _FakeUserService(profile)
+    client, fake_feed, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept", params={"limit": 25})
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["is_premium"] is False
+    assert response.json()["meta"]["applied_limit"] == 3
+    assert response.json()["meta"]["truncated_for_free_tier"] is True
+    assert len(fake_feed.calls) == 1
+    assert fake_feed.calls[0].limit == 3
+
+
+def test_premium_user_can_access_full_limit(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_premium_full", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=True)
+    user_service = _FakeUserService(profile)
+    client, fake_feed, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept", params={"limit": 25})
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["is_premium"] is True
+    assert response.json()["meta"]["applied_limit"] == 25
+    assert response.json()["meta"]["truncated_for_free_tier"] is False
+    assert len(fake_feed.calls) == 1
+    assert fake_feed.calls[0].limit == 25
+
+
+def test_premium_user_is_capped_by_max_limit(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_premium_cap", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=True)
+    user_service = _FakeUserService(profile)
+    client, fake_feed, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept", params={"limit": 200})
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["is_premium"] is True
+    assert response.json()["meta"]["applied_limit"] == 25
+    assert response.json()["meta"]["truncated_for_free_tier"] is False
+    assert len(fake_feed.calls) == 1
+    assert fake_feed.calls[0].limit == 25
+
+
+def test_default_limit_still_respects_free_cap(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_free_default", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=False)
+    user_service = _FakeUserService(profile)
+    client, fake_feed, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept")
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["is_premium"] is False
+    assert response.json()["meta"]["applied_limit"] == 3
+    assert response.json()["meta"]["truncated_for_free_tier"] is False
+    assert len(fake_feed.calls) == 1
+    assert fake_feed.calls[0].limit == 3
+
+
+def test_default_limit_still_respects_premium_cap(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_premium_default", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=True)
+    user_service = _FakeUserService(profile)
+    client, fake_feed, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept")
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["is_premium"] is True
+    assert response.json()["meta"]["applied_limit"] == 25
+    assert response.json()["meta"]["truncated_for_free_tier"] is False
+    assert len(fake_feed.calls) == 1
+    assert fake_feed.calls[0].limit == 25
+
+
+def test_meta_indicates_free_user_truncation(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_free_meta", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=False)
+    user_service = _FakeUserService(profile)
+    client, _, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept", params={"limit": 20})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["is_premium"] is False
+    assert payload["meta"]["truncated_for_free_tier"] is True
+
+
+def test_meta_for_premium_user(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_premium_meta", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=True)
+    user_service = _FakeUserService(profile)
+    client, _, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept", params={"limit": 25})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["is_premium"] is True
+    assert payload["meta"]["truncated_for_free_tier"] is False
+
+
+def test_meta_applied_limit_matches_gating(client_factory) -> None:
+    feed_use_case = _FakeSleepWindowUseCase(SleepWindowResponse(items=[]))
+    profile = _user(user_id="usr_free_applied", lang="en")
+    profile.sleep_window = UserSleepWindow(start="23:00", end="07:00", timezone="UTC")
+    profile.entitlements = EntitlementState(premium=False)
+    user_service = _FakeUserService(profile)
+    client, _, _ = client_factory(
+        feed_use_case=feed_use_case,
+        user_service=user_service,
+        current_user=profile,
+    )
+
+    response = client.get("/while-i-slept", params={"limit": 20})
+
+    assert response.status_code == 200
+    assert response.json()["meta"]["applied_limit"] == feed_router.FREE_FEED_LIMIT
