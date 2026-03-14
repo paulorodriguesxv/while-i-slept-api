@@ -16,6 +16,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "use_localstack" {
+  description = "Use LocalStack endpoints and local credentials instead of AWS."
+  type        = bool
+  default     = false
+}
+
 variable "dynamodb_billing_mode" {
   description = "DynamoDB billing mode. PAY_PER_REQUEST is recommended for MVP usage."
   type        = string
