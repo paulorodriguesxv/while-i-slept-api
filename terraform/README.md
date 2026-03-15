@@ -6,8 +6,11 @@ It provisions only the MVP base infrastructure:
 - 4 DynamoDB tables aligned with the backend architecture
 - 1 SQS queue for summary jobs
 - 1 dead-letter queue (DLQ) for summary jobs
+- 1 API Lambda function (AWS-only)
+- IAM role/policies for API Lambda (AWS-only)
+- CloudWatch log group for API Lambda (AWS-only)
 
-It intentionally does **not** include Lambda, EventBridge, or IAM resources yet.
+It intentionally does **not** include API Gateway or EventBridge resources yet.
 
 ## Files
 
@@ -16,6 +19,8 @@ It intentionally does **not** include Lambda, EventBridge, or IAM resources yet.
 - `variables.tf`: input variables
 - `locals.tf`: common locals (naming + tags)
 - `main.tf`: DynamoDB + SQS resources
+- `iam.tf`: IAM role and least-privilege policies for API Lambda
+- `lambda_api.tf`: API Lambda function and CloudWatch log group
 - `outputs.tf`: useful output values
 - `terraform.tfvars.example`: example variable values
 - `local.tfvars`: ready-to-use LocalStack variable file
@@ -93,12 +98,11 @@ and uses local test credentials with AWS account checks disabled.
 
 If DynamoDB tables already exist in LocalStack, import each one before apply.
 
-If dynamodb present the error "Table already exists", maybe you will need to run the following command:
+If Dynamodb present the error "Table already exists", maybe you will need to run the following command:
 
 ```bash
 terraform import -var-file=local.tfvars aws_dynamodb_table.app  while-i-slept-local-app`
 ```
-
 
 ## Running Terraform on AWS
 
@@ -111,6 +115,45 @@ terraform apply -var-file=prod.tfvars
 ```
 
 When `use_localstack = false`, Terraform runs in normal AWS mode.
+
+## API Lambda Infrastructure
+
+The API Lambda runs the FastAPI backend with Python 3.12.
+
+- Lambda function: `${project_name}-${environment}-api`
+- Runtime: `python3.12`
+- Handler: `run.sh`
+- Timeout: `15s`
+- Memory: `512 MB`
+
+IAM permissions (least privilege) are split by concern:
+
+- CloudWatch Logs:
+  - `logs:CreateLogGroup`
+  - `logs:CreateLogStream`
+  - `logs:PutLogEvents`
+- DynamoDB (scoped to the application tables: articles, users, devices, briefings):
+  - `dynamodb:GetItem`
+  - `dynamodb:PutItem`
+  - `dynamodb:UpdateItem`
+  - `dynamodb:Query`
+  - `dynamodb:Scan`
+- SQS (scoped to the summary queue):
+  - `sqs:SendMessage`
+  - `sqs:ReceiveMessage`
+  - `sqs:DeleteMessage`
+  - `sqs:GetQueueAttributes`
+
+Lambda environment variables:
+
+- `APP_ENV = var.environment`
+- `ARTICLES_TABLE_NAME = aws_dynamodb_table.articles.name` (article ingestion and summary pipeline records)
+- `USERS_TABLE_NAME = aws_dynamodb_table.users.name` (user profiles and preferences)
+- `DEVICES_TABLE_NAME = aws_dynamodb_table.devices.name` (registered user devices)
+- `BRIEFINGS_TABLE_NAME = aws_dynamodb_table.briefings.name` (generated briefing/feed entries)
+- `SUMMARY_QUEUE_URL = aws_sqs_queue.summary_jobs.id`
+
+When `use_localstack = true`, Lambda/IAM/CloudWatch API resources are skipped (`count = 0`) to avoid LocalStack limitations and keep local plans/applies stable.
 
 ## Destroying Infrastructure
 

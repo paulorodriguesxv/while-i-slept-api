@@ -72,3 +72,13 @@ output "summary_dlq_arn" {
   description = "ARN of the summary jobs dead-letter queue."
   value       = aws_sqs_queue.summary_jobs_dlq.arn
 }
+
+output "api_lambda_function_name" {
+  description = "API Lambda function name (null when use_localstack=true)."
+  value       = var.use_localstack ? null : aws_lambda_function.api[0].function_name
+}
+
+output "api_lambda_role_arn" {
+  description = "API Lambda IAM role ARN (null when use_localstack=true)."
+  value       = var.use_localstack ? null : aws_iam_role.api_lambda_role[0].arn
+}

@@ -44,3 +44,9 @@ variable "summary_queue_message_retention_seconds" {
   type        = number
   default     = 345600
 }
+
+variable "lambda_api_package_path" {
+  description = "Path to the API Lambda deployment package zip."
+  type        = string
+  default     = "build/api_lambda.zip"
+}
