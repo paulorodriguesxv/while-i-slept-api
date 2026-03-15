@@ -74,11 +74,21 @@ output "summary_dlq_arn" {
 }
 
 output "api_lambda_function_name" {
-  description = "API Lambda function name (null when use_localstack=true)."
-  value       = var.use_localstack ? null : aws_lambda_function.api[0].function_name
+  description = "API Lambda function name."
+  value       = aws_lambda_function.api.function_name
 }
 
 output "api_lambda_role_arn" {
   description = "API Lambda IAM role ARN (null when use_localstack=true)."
   value       = var.use_localstack ? null : aws_iam_role.api_lambda_role[0].arn
+}
+
+output "ingestion_lambda_function_name" {
+  description = "Ingestion Lambda function name."
+  value       = aws_lambda_function.ingestion.function_name
+}
+
+output "eventbridge_rule_name" {
+  description = "EventBridge ingestion schedule rule name."
+  value       = aws_cloudwatch_event_rule.ingestion_schedule.name
 }

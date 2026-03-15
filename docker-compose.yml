@@ -2,7 +2,8 @@ services:
   localstack:
     image: localstack/localstack:latest
     environment:
-      SERVICES: sqs,dynamodb
+      SERVICES: lambda,dynamodb,sqs,events
+      LAMBDA_EXECUTOR: docker
       EDGE_PORT: "4566"
       AWS_DEFAULT_REGION: us-east-1
     ports:

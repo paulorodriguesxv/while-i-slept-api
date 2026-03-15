@@ -6,11 +6,14 @@ It provisions only the MVP base infrastructure:
 - 4 DynamoDB tables aligned with the backend architecture
 - 1 SQS queue for summary jobs
 - 1 dead-letter queue (DLQ) for summary jobs
-- 1 API Lambda function (AWS-only)
-- IAM role/policies for API Lambda (AWS-only)
-- CloudWatch log group for API Lambda (AWS-only)
+- 1 API Lambda function
+- 1 ingestion Lambda function
+- 1 EventBridge schedule to trigger ingestion
+- IAM role/policies for API Lambda (AWS mode)
+- IAM role/policies for ingestion Lambda (AWS mode)
+- CloudWatch log groups for API and ingestion Lambdas
 
-It intentionally does **not** include API Gateway or EventBridge resources yet.
+It intentionally does **not** include API Gateway resources yet.
 
 ## Files
 
@@ -19,8 +22,10 @@ It intentionally does **not** include API Gateway or EventBridge resources yet.
 - `variables.tf`: input variables
 - `locals.tf`: common locals (naming + tags)
 - `main.tf`: DynamoDB + SQS resources
-- `iam.tf`: IAM role and least-privilege policies for API Lambda
+- `iam.tf`: IAM roles and least-privilege policies for API and ingestion Lambdas
 - `lambda_api.tf`: API Lambda function and CloudWatch log group
+- `lambda_ingestion.tf`: ingestion Lambda function and CloudWatch log group
+- `eventbridge.tf`: scheduled trigger for ingestion Lambda
 - `outputs.tf`: useful output values
 - `terraform.tfvars.example`: example variable values
 - `local.tfvars`: ready-to-use LocalStack variable file
@@ -96,12 +101,14 @@ When `use_localstack = true`, the provider points DynamoDB and SQS to:
 
 and uses local test credentials with AWS account checks disabled.
 
+Lambda and EventBridge resources are also created in LocalStack mode to simulate the end-to-end AWS architecture locally.
+
 If DynamoDB tables already exist in LocalStack, import each one before apply.
 
 If Dynamodb present the error "Table already exists", maybe you will need to run the following command:
 
 ```bash
-terraform import -var-file=local.tfvars aws_dynamodb_table.app  while-i-slept-local-app`
+terraform import -var-file=local.tfvars aws_dynamodb_table.articles while-i-slept-local-articles
 ```
 
 ## Running Terraform on AWS
@@ -154,7 +161,69 @@ Lambda environment variables:
 - `BRIEFINGS_TABLE_NAME = aws_dynamodb_table.briefings.name` (generated briefing/feed entries)
 - `SUMMARY_QUEUE_URL = aws_sqs_queue.summary_jobs.id`
 
-When `use_localstack = true`, Lambda/IAM/CloudWatch API resources are skipped (`count = 0`) to avoid LocalStack limitations and keep local plans/applies stable.
+In LocalStack mode, the API Lambda is created with the same resource name and local-compatible role ARN wiring.
+
+## Scheduled Ingestion
+
+EventBridge Scheduler runs the ingestion Lambda on a fixed interval.
+
+Flow:
+- EventBridge rule triggers ingestion Lambda (`rate(5 minutes)` by default)
+- ingestion Lambda fetches RSS feeds
+- ingestion writes raw articles to the articles DynamoDB table
+- ingestion enqueues summary jobs into `summary-jobs` SQS
+
+Ingestion Lambda configuration:
+- Lambda function: `${project_name}-${environment}-ingestion`
+- Runtime: `python3.12`
+- Handler: `ingestion.handler`
+- Timeout: `120s`
+- Memory: `512 MB`
+
+Ingestion Lambda IAM permissions (least privilege):
+- CloudWatch Logs:
+  - `logs:CreateLogGroup`
+  - `logs:CreateLogStream`
+  - `logs:PutLogEvents`
+- DynamoDB (scoped to articles table):
+  - `dynamodb:GetItem`
+  - `dynamodb:PutItem`
+  - `dynamodb:UpdateItem`
+  - `dynamodb:Query`
+  - `dynamodb:Scan`
+- SQS (scoped to summary queue):
+  - `sqs:SendMessage`
+
+Ingestion Lambda environment variables:
+- `APP_ENV = var.environment`
+- `ARTICLES_TABLE_NAME = aws_dynamodb_table.articles.name`
+- `SUMMARY_QUEUE_URL = aws_sqs_queue.summary_jobs.id`
+
+In LocalStack mode, EventBridge and ingestion Lambda resources are created so scheduled ingestion can be exercised locally.
+
+## Local Development Workflow
+
+Start LocalStack:
+
+```bash
+docker compose up localstack
+```
+
+Deploy infrastructure:
+
+```bash
+cd terraform
+terraform init
+terraform apply -var-file=local.tfvars
+```
+
+Verify core resources:
+
+```bash
+awslocal lambda list-functions
+awslocal events list-rules
+awslocal sqs list-queues
+```
 
 ## Destroying Infrastructure
 
@@ -205,6 +274,13 @@ terraform destroy -var-file=prod.tfvars
   - redrive policy to DLQ
 
 - `aws_sqs_queue.summary_jobs_dlq`
+
+- `aws_lambda_function.api`
+- `aws_lambda_function.ingestion`
+- `aws_cloudwatch_log_group.api`
+- `aws_cloudwatch_log_group.ingestion`
+- `aws_cloudwatch_event_rule.ingestion_schedule`
+- `aws_cloudwatch_event_target.ingestion_lambda`
 
 ## Tags
 

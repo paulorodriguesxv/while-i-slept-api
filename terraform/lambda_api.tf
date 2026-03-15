@@ -1,6 +1,4 @@
 resource "aws_cloudwatch_log_group" "api" {
-  count = var.use_localstack ? 0 : 1
-
   name              = "/aws/lambda/${local.resource_prefix}-api"
   retention_in_days = 14
 
@@ -8,10 +6,8 @@ resource "aws_cloudwatch_log_group" "api" {
 }
 
 resource "aws_lambda_function" "api" {
-  count = var.use_localstack ? 0 : 1
-
   function_name = "${local.resource_prefix}-api"
-  role          = aws_iam_role.api_lambda_role[0].arn
+  role          = var.use_localstack ? "arn:aws:iam::000000000000:role/${local.resource_prefix}-api-lambda-role" : aws_iam_role.api_lambda_role[0].arn
   runtime       = "python3.12"
   handler       = "run.sh"
   timeout       = 15

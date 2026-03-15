@@ -50,3 +50,15 @@ variable "lambda_api_package_path" {
   type        = string
   default     = "build/api_lambda.zip"
 }
+
+variable "lambda_ingestion_package_path" {
+  description = "Path to the ingestion Lambda deployment package zip."
+  type        = string
+  default     = "build/ingestion_lambda.zip"
+}
+
+variable "ingestion_schedule_expression" {
+  description = "EventBridge schedule expression for ingestion."
+  type        = string
+  default     = "rate(5 minutes)"
+}
