@@ -23,13 +23,13 @@ variable "use_localstack" {
 }
 
 variable "dynamodb_billing_mode" {
-  description = "DynamoDB billing mode. PAY_PER_REQUEST is recommended for MVP usage."
+  description = "DynamoDB billing mode for all application tables."
   type        = string
   default     = "PAY_PER_REQUEST"
 
   validation {
-    condition     = contains(["PAY_PER_REQUEST", "PROVISIONED"], var.dynamodb_billing_mode)
-    error_message = "dynamodb_billing_mode must be PAY_PER_REQUEST or PROVISIONED."
+    condition     = var.dynamodb_billing_mode == "PAY_PER_REQUEST"
+    error_message = "Only PAY_PER_REQUEST is supported in this Terraform foundation."
   }
 }
 

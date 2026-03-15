@@ -1,11 +1,15 @@
-resource "aws_dynamodb_table" "app" {
-  name         = "${local.resource_prefix}-app"
+resource "aws_dynamodb_table" "articles" {
+  name         = "${local.resource_prefix}-articles"
   billing_mode = var.dynamodb_billing_mode
   hash_key     = "pk"
   range_key    = "sk"
 
   read_capacity  = var.dynamodb_billing_mode == "PROVISIONED" ? 5 : null
   write_capacity = var.dynamodb_billing_mode == "PROVISIONED" ? 5 : null
+
+  point_in_time_recovery {
+    enabled = var.environment == "production"
+  }
 
   attribute {
     name = "pk"
@@ -21,8 +25,112 @@ resource "aws_dynamodb_table" "app" {
     enabled = true
   }
 
+  tags = local.common_tags
+}
+
+resource "aws_dynamodb_table" "users" {
+  name         = "${local.resource_prefix}-users"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "user_id"
+  range_key    = "sk"
+
+  read_capacity  = var.dynamodb_billing_mode == "PROVISIONED" ? 5 : null
+  write_capacity = var.dynamodb_billing_mode == "PROVISIONED" ? 5 : null
+
   point_in_time_recovery {
     enabled = var.environment == "production"
+  }
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI1PK"
+    type = "S"
+  }
+
+  attribute {
+    name = "GSI1SK"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "GSI1"
+    projection_type = "ALL"
+
+    key_schema {
+      attribute_name = "GSI1PK"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "GSI1SK"
+      key_type       = "RANGE"
+    }
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_dynamodb_table" "devices" {
+  name         = "${local.resource_prefix}-devices"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "user_id"
+  range_key    = "sk"
+
+  read_capacity  = var.dynamodb_billing_mode == "PROVISIONED" ? 5 : null
+  write_capacity = var.dynamodb_billing_mode == "PROVISIONED" ? 5 : null
+
+  point_in_time_recovery {
+    enabled = var.environment == "production"
+  }
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_dynamodb_table" "briefings" {
+  name         = "${local.resource_prefix}-briefings"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "pk"
+  range_key    = "sk"
+
+  attribute {
+    name = "pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
   }
 
   tags = local.common_tags

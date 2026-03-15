@@ -1,11 +1,51 @@
 output "dynamodb_table_name" {
-  description = "Name of the application DynamoDB table."
-  value       = aws_dynamodb_table.app.name
+  description = "Name of the primary articles DynamoDB table (backward-compatible output)."
+  value       = aws_dynamodb_table.articles.name
 }
 
 output "dynamodb_table_arn" {
-  description = "ARN of the application DynamoDB table."
-  value       = aws_dynamodb_table.app.arn
+  description = "ARN of the primary articles DynamoDB table (backward-compatible output)."
+  value       = aws_dynamodb_table.articles.arn
+}
+
+output "articles_table_name" {
+  description = "Name of the articles DynamoDB table."
+  value       = aws_dynamodb_table.articles.name
+}
+
+output "articles_table_arn" {
+  description = "ARN of the articles DynamoDB table."
+  value       = aws_dynamodb_table.articles.arn
+}
+
+output "users_table_name" {
+  description = "Name of the users DynamoDB table."
+  value       = aws_dynamodb_table.users.name
+}
+
+output "users_table_arn" {
+  description = "ARN of the users DynamoDB table."
+  value       = aws_dynamodb_table.users.arn
+}
+
+output "devices_table_name" {
+  description = "Name of the devices DynamoDB table."
+  value       = aws_dynamodb_table.devices.name
+}
+
+output "devices_table_arn" {
+  description = "ARN of the devices DynamoDB table."
+  value       = aws_dynamodb_table.devices.arn
+}
+
+output "briefings_table_name" {
+  description = "Name of the briefings DynamoDB table."
+  value       = aws_dynamodb_table.briefings.name
+}
+
+output "briefings_table_arn" {
+  description = "ARN of the briefings DynamoDB table."
+  value       = aws_dynamodb_table.briefings.arn
 }
 
 output "summary_queue_name" {

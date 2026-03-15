@@ -3,7 +3,7 @@
 This folder contains the initial Terraform foundation for `while-i-slept-api`.
 
 It provisions only the MVP base infrastructure:
-- 1 DynamoDB table (single-table design)
+- 4 DynamoDB tables aligned with the backend architecture
 - 1 SQS queue for summary jobs
 - 1 dead-letter queue (DLQ) for summary jobs
 
@@ -28,7 +28,7 @@ Resources are named with:
 `<project_name>-<environment>-<resource>`
 
 Example:
-- `while-i-slept-api-development-app`
+- `while-i-slept-api-development-articles`
 - `while-i-slept-api-development-summary-jobs`
 
 ## Usage
@@ -91,11 +91,14 @@ When `use_localstack = true`, the provider points DynamoDB and SQS to:
 
 and uses local test credentials with AWS account checks disabled.
 
+If DynamoDB tables already exist in LocalStack, import each one before apply.
+
 If dynamodb present the error "Table already exists", maybe you will need to run the following command:
 
 ```bash
 terraform import -var-file=local.tfvars aws_dynamodb_table.app  while-i-slept-local-app`
 ```
+
 
 ## Running Terraform on AWS
 
@@ -127,10 +130,30 @@ terraform destroy -var-file=prod.tfvars
 
 ## Resources Created In This Step
 
-- `aws_dynamodb_table.app`
-  - `pk` (partition key), `sk` (sort key)
+- `aws_dynamodb_table.articles`
+  - stores raw ingested article and summary pipeline records
+  - keys: `pk` (partition key), `sk` (sort key)
+  - billing mode: `PAY_PER_REQUEST`
   - server-side encryption enabled
-  - point-in-time recovery enabled only when `environment == "production"`
+
+- `aws_dynamodb_table.users`
+  - stores user profiles and preferences
+  - keys: `user_id` (partition key), `sk` (sort key)
+  - GSI: `GSI1` (`GSI1PK`, `GSI1SK`, projection `ALL`)
+  - billing mode: `PAY_PER_REQUEST`
+  - server-side encryption enabled
+
+- `aws_dynamodb_table.devices`
+  - stores registered user devices
+  - keys: `user_id` (partition key), `sk` (sort key)
+  - billing mode: `PAY_PER_REQUEST`
+  - server-side encryption enabled
+
+- `aws_dynamodb_table.briefings`
+  - stores generated briefing/feed entries
+  - keys: `pk` (partition key), `sk` (sort key)
+  - billing mode: `PAY_PER_REQUEST`
+  - server-side encryption enabled
 
 - `aws_sqs_queue.summary_jobs`
   - configurable visibility timeout
