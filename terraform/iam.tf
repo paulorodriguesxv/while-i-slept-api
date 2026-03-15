@@ -65,6 +65,7 @@ data "aws_iam_policy_document" "api_lambda_dynamodb" {
     resources = [
       aws_dynamodb_table.articles.arn,
       aws_dynamodb_table.users.arn,
+      "${aws_dynamodb_table.users.arn}/index/*",
       aws_dynamodb_table.devices.arn,
       aws_dynamodb_table.briefings.arn,
     ]

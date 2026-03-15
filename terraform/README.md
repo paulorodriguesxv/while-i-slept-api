@@ -138,6 +138,7 @@ IAM permissions (least privilege) are split by concern:
   - `dynamodb:UpdateItem`
   - `dynamodb:Query`
   - `dynamodb:Scan`
+  - includes access to users table indexes (`/index/*`) for GSI queries
 - SQS (scoped to the summary queue):
   - `sqs:SendMessage`
   - `sqs:ReceiveMessage`
