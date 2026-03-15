@@ -92,3 +92,13 @@ output "eventbridge_rule_name" {
   description = "EventBridge ingestion schedule rule name."
   value       = aws_cloudwatch_event_rule.ingestion_schedule.name
 }
+
+output "worker_lambda_function_name" {
+  description = "Worker Lambda function name."
+  value       = aws_lambda_function.worker.function_name
+}
+
+output "worker_lambda_role_arn" {
+  description = "Worker Lambda IAM role ARN (null when use_localstack=true)."
+  value       = var.use_localstack ? null : aws_iam_role.worker_lambda_role[0].arn
+}

@@ -7,11 +7,13 @@ It provisions only the MVP base infrastructure:
 - 1 SQS queue for summary jobs
 - 1 dead-letter queue (DLQ) for summary jobs
 - 1 API Lambda function
+- 1 worker Lambda function with SQS trigger
 - 1 ingestion Lambda function
 - 1 EventBridge schedule to trigger ingestion
 - IAM role/policies for API Lambda (AWS mode)
+- IAM role/policies for worker Lambda (AWS mode)
 - IAM role/policies for ingestion Lambda (AWS mode)
-- CloudWatch log groups for API and ingestion Lambdas
+- CloudWatch log groups for API, worker, and ingestion Lambdas
 
 It intentionally does **not** include API Gateway resources yet.
 
@@ -22,8 +24,9 @@ It intentionally does **not** include API Gateway resources yet.
 - `variables.tf`: input variables
 - `locals.tf`: common locals (naming + tags)
 - `main.tf`: DynamoDB + SQS resources
-- `iam.tf`: IAM roles and least-privilege policies for API and ingestion Lambdas
+- `iam.tf`: IAM roles and least-privilege policies for API, worker, and ingestion Lambdas
 - `lambda_api.tf`: API Lambda function and CloudWatch log group
+- `lambda_worker.tf`: worker Lambda function, CloudWatch log group, and SQS event source mapping
 - `lambda_ingestion.tf`: ingestion Lambda function and CloudWatch log group
 - `eventbridge.tf`: scheduled trigger for ingestion Lambda
 - `outputs.tf`: useful output values
@@ -201,6 +204,39 @@ Ingestion Lambda environment variables:
 
 In LocalStack mode, EventBridge and ingestion Lambda resources are created so scheduled ingestion can be exercised locally.
 
+## Worker Lambda
+
+The worker Lambda consumes summary jobs from SQS, generates summaries, and writes results into the briefings table.
+
+Flow:
+- SQS queue `summary-jobs` receives summary tasks
+- Lambda event source mapping triggers worker in batches
+- worker reads/writes required article and briefing records in DynamoDB
+
+Worker Lambda configuration:
+- Lambda function: `${project_name}-${environment}-worker`
+- Runtime: `python3.12`
+- Handler: `worker.handler`
+- Timeout: `60s`
+- Memory: `512 MB`
+- SQS batch size: `5`
+
+Worker Lambda IAM permissions (least privilege):
+- CloudWatch Logs:
+  - `logs:CreateLogGroup`
+  - `logs:CreateLogStream`
+  - `logs:PutLogEvents`
+- DynamoDB (scoped to articles and briefings tables):
+  - `dynamodb:GetItem`
+  - `dynamodb:PutItem`
+  - `dynamodb:UpdateItem`
+  - `dynamodb:Query`
+  - `dynamodb:Scan`
+- SQS (scoped to summary queue):
+  - `sqs:ReceiveMessage`
+  - `sqs:DeleteMessage`
+  - `sqs:GetQueueAttributes`
+
 ## Local Development Workflow
 
 Start LocalStack:
@@ -276,9 +312,12 @@ terraform destroy -var-file=prod.tfvars
 - `aws_sqs_queue.summary_jobs_dlq`
 
 - `aws_lambda_function.api`
+- `aws_lambda_function.worker`
 - `aws_lambda_function.ingestion`
 - `aws_cloudwatch_log_group.api`
+- `aws_cloudwatch_log_group.worker`
 - `aws_cloudwatch_log_group.ingestion`
+- `aws_lambda_event_source_mapping.worker_summary_jobs`
 - `aws_cloudwatch_event_rule.ingestion_schedule`
 - `aws_cloudwatch_event_target.ingestion_lambda`
 

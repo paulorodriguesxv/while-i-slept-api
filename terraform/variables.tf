@@ -57,6 +57,12 @@ variable "lambda_ingestion_package_path" {
   default     = "build/ingestion_lambda.zip"
 }
 
+variable "lambda_worker_package_path" {
+  description = "Path to the worker Lambda deployment package zip."
+  type        = string
+  default     = "build/worker_lambda.zip"
+}
+
 variable "ingestion_schedule_expression" {
   description = "EventBridge schedule expression for ingestion."
   type        = string
