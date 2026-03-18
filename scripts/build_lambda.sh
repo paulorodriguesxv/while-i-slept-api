@@ -1,51 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 <lambda_name>" >&2
-  echo "Example: $0 api" >&2
-  exit 1
-fi
+LAMBDA_NAME="${1:?Usage: build_lambda.sh <api|worker|ingestion>}"
 
-LAMBDA_NAME="$1"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD_DIR="${ROOT_DIR}/build"
-LAMBDA_DIR="${ROOT_DIR}/lambda/${LAMBDA_NAME}"
-HANDLER_FILE="${LAMBDA_DIR}/handler.py"
-SOURCE_DIR="${ROOT_DIR}/src/while_i_slept_api"
-OUTPUT_ZIP="${BUILD_DIR}/${LAMBDA_NAME}_lambda.zip"
+ROOT_DIR="/app"
+BUILD_DIR="${ROOT_DIR}/build/${LAMBDA_NAME}"
 
-if [[ ! -d "${LAMBDA_DIR}" ]]; then
-  echo "Lambda directory not found: ${LAMBDA_DIR}" >&2
-  exit 1
-fi
-
-if [[ ! -f "${HANDLER_FILE}" ]]; then
-  echo "Handler file not found: ${HANDLER_FILE}" >&2
-  exit 1
-fi
-
-if [[ ! -d "${SOURCE_DIR}" ]]; then
-  echo "Source package not found: ${SOURCE_DIR}" >&2
-  exit 1
-fi
-
-command -v zip >/dev/null 2>&1 || {
-  echo "zip command is required to build Lambda artifacts." >&2
-  exit 1
-}
-
+rm -rf "${BUILD_DIR}"
 mkdir -p "${BUILD_DIR}"
-TMP_DIR="$(mktemp -d "${BUILD_DIR}/${LAMBDA_NAME}.XXXXXX")"
-trap 'rm -rf "${TMP_DIR}"' EXIT
 
-cp "${HANDLER_FILE}" "${TMP_DIR}/handler.py"
-cp -R "${SOURCE_DIR}" "${TMP_DIR}/while_i_slept_api"
+# Copy application code
+cp -r src/while_i_slept_api "${BUILD_DIR}/"
 
-rm -f "${OUTPUT_ZIP}"
-(
-  cd "${TMP_DIR}"
-  zip -qr "${OUTPUT_ZIP}" .
-)
+# Copy lambda handler
+cp -r lambda/${LAMBDA_NAME}/* "${BUILD_DIR}/"
 
-echo "Built Lambda package: ${OUTPUT_ZIP}"
+python3 - <<PY
+import os
+import zipfile
+
+build_dir = "/app/build/${LAMBDA_NAME}"
+output_zip = "/app/build/${LAMBDA_NAME}_lambda.zip"
+
+with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as archive:
+    for root, _, files in os.walk(build_dir):
+        for filename in files:
+            full_path = os.path.join(root, filename)
+            relative_path = os.path.relpath(full_path, build_dir)
+            archive.write(full_path, relative_path)
+PY
+
+echo "Built Lambda: ${LAMBDA_NAME}"

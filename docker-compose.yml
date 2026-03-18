@@ -2,10 +2,11 @@ services:
   localstack:
     image: localstack/localstack:latest
     environment:
-      SERVICES: lambda,dynamodb,sqs,events,cloudwatch,logs
+      #SERVICES: lambda,dynamodb,sqs,events,cloudwatch,logs,apigateway
       LAMBDA_EXECUTOR: docker
       EDGE_PORT: "4566"
       AWS_DEFAULT_REGION: us-east-1      
+      LOCALSTACK_AUTH_TOKEN: ls-RAbudEWI-3083-Requ-SeCo-Refe60129f88
     ports:
       - "4566:4566"
     volumes:
@@ -38,3 +39,10 @@ services:
     depends_on:
       - localstack
     command: ["sh", "-lc", "python scripts/create_tables.py && pytest -q"]
+
+  lambda-builder:
+    image: public.ecr.aws/lambda/python:3.12
+    volumes:
+      - ./:/app
+    working_dir: /app
+    entrypoint: []

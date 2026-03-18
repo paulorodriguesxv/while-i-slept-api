@@ -8,6 +8,7 @@ It provisions only the MVP base infrastructure:
 - 1 dead-letter queue (DLQ) for summary jobs
 - 1 shared Lambda Layer for Python dependencies
 - 1 API Lambda function
+- 1 API Gateway HTTP API exposing FastAPI
 - 1 worker Lambda function with SQS trigger
 - 1 ingestion Lambda function
 - 1 EventBridge schedule to trigger ingestion
@@ -16,7 +17,7 @@ It provisions only the MVP base infrastructure:
 - IAM role/policies for ingestion Lambda (AWS mode)
 - CloudWatch log groups for API, worker, and ingestion Lambdas
 
-It intentionally does **not** include API Gateway resources yet.
+It intentionally keeps API Gateway minimal (single HTTP API + catch-all proxy route).
 
 ## Files
 
@@ -26,6 +27,7 @@ It intentionally does **not** include API Gateway resources yet.
 - `locals.tf`: common locals (naming + tags)
 - `main.tf`: DynamoDB + SQS resources
 - `iam.tf`: IAM roles and least-privilege policies for API, worker, and ingestion Lambdas
+- `api_gateway.tf`: HTTP API Gateway v2 resources and Lambda invoke permission
 - `lambda_layer.tf`: shared Python dependencies Lambda Layer
 - `lambda_api.tf`: API Lambda function and CloudWatch log group
 - `lambda_worker.tf`: worker Lambda function, CloudWatch log group, and SQS event source mapping
@@ -173,6 +175,18 @@ Lambda environment variables:
 - `SUMMARY_QUEUE_URL = aws_sqs_queue.summary_jobs.id`
 
 In LocalStack mode, the API Lambda is created with the same resource name and local-compatible role ARN wiring.
+
+## API Gateway
+
+The infrastructure uses API Gateway **HTTP API (v2)**, not REST API.
+
+Routing model:
+- `$default` route forwards all paths and methods to the API Lambda via AWS_PROXY integration.
+- FastAPI handles application-level routing for endpoints such as `/me` and `/while-i-slept`.
+
+Deployment model:
+- `$default` stage with `auto_deploy = true`.
+- Public URL is exposed by Terraform output `api_endpoint`.
 
 ## Scheduled Ingestion
 
@@ -339,6 +353,10 @@ terraform destroy -var-file=prod.tfvars
 - `aws_sqs_queue.summary_jobs_dlq`
 
 - `aws_lambda_layer_version.python_dependencies`
+- `aws_apigatewayv2_api.api`
+- `aws_apigatewayv2_integration.api_lambda`
+- `aws_apigatewayv2_route.default`
+- `aws_apigatewayv2_stage.default`
 - `aws_lambda_function.api`
 - `aws_lambda_function.worker`
 - `aws_lambda_function.ingestion`

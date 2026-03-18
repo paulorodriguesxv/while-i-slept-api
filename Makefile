@@ -147,19 +147,19 @@ summary-pipeline-worker: ##@summary-pipeline-worker Run the local worker for the
 
 .PHONY: build-layer
 build-layer: ##@build Build shared Lambda layer dependencies package
-	bash scripts/build_layer.sh
+	docker compose run --rm lambda-builder bash scripts/build_layer.sh
 
 .PHONY: build-api
 build-api: ##@build Build API Lambda package
-	bash scripts/build_lambda.sh api
+	docker compose run --rm lambda-builder bash scripts/build_lambda.sh api
 
 .PHONY: build-worker
 build-worker: ##@build Build worker Lambda package
-	bash scripts/build_lambda.sh worker
+	docker compose run --rm lambda-builder bash scripts/build_lambda.sh worker
 
 .PHONY: build-ingestion
 build-ingestion: ##@build Build ingestion Lambda package
-	bash scripts/build_lambda.sh ingestion
+	docker compose run --rm lambda-builder bash scripts/build_lambda.sh ingestion
 
 .PHONY: build-lambdas
 build-lambdas: ##@build Build all Lambda function packages

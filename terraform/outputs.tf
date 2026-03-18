@@ -107,3 +107,8 @@ output "python_dependencies_layer_arn" {
   description = "Shared Python dependencies Lambda Layer ARN."
   value       = aws_lambda_layer_version.python_dependencies.arn
 }
+
+output "api_endpoint" {
+  description = "Public HTTP API endpoint for the FastAPI Lambda."
+  value       = aws_apigatewayv2_api.api.api_endpoint
+}
