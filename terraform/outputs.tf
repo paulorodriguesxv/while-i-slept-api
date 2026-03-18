@@ -109,6 +109,6 @@ output "python_dependencies_layer_arn" {
 }
 
 output "api_endpoint" {
-  description = "Public HTTP API endpoint for the FastAPI Lambda."
-  value       = aws_apigatewayv2_api.api.api_endpoint
+  description = "Public API endpoint for the FastAPI Lambda."
+  value       = var.use_localstack ? aws_api_gateway_stage.default_local[0].invoke_url : aws_apigatewayv2_api.api[0].api_endpoint
 }
