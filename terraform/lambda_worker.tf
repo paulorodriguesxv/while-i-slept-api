@@ -9,9 +9,12 @@ resource "aws_lambda_function" "worker" {
   function_name = "${local.resource_prefix}-worker"
   role          = var.use_localstack ? "arn:aws:iam::000000000000:role/${local.resource_prefix}-worker-lambda-role" : aws_iam_role.worker_lambda_role[0].arn
   runtime       = "python3.12"
-  handler       = "worker.handler"
+  handler       = "handler.handler"
   timeout       = 60
   memory_size   = 512
+  layers = [
+    aws_lambda_layer_version.python_dependencies.arn,
+  ]
 
   filename         = var.lambda_worker_package_path
   source_code_hash = fileexists(var.lambda_worker_package_path) ? filebase64sha256(var.lambda_worker_package_path) : null

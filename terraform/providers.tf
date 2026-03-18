@@ -13,6 +13,10 @@ provider "aws" {
     content {
       dynamodb = "http://localhost:4566"
       sqs      = "http://localhost:4566"
+      eventbridge = "http://localhost:4566"
+      lambda   = "http://localhost:4566"
+      cloudwatch = "http://localhost:4566"
+      cloudwatchlogs = "http://localhost:4566"
     }
   }
 }

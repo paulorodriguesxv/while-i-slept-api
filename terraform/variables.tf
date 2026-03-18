@@ -48,19 +48,25 @@ variable "summary_queue_message_retention_seconds" {
 variable "lambda_api_package_path" {
   description = "Path to the API Lambda deployment package zip."
   type        = string
-  default     = "build/api_lambda.zip"
+  default     = "../build/api_lambda.zip"
 }
 
 variable "lambda_ingestion_package_path" {
   description = "Path to the ingestion Lambda deployment package zip."
   type        = string
-  default     = "build/ingestion_lambda.zip"
+  default     = "../build/ingestion_lambda.zip"
 }
 
 variable "lambda_worker_package_path" {
   description = "Path to the worker Lambda deployment package zip."
   type        = string
-  default     = "build/worker_lambda.zip"
+  default     = "../build/worker_lambda.zip"
+}
+
+variable "lambda_python_dependencies_layer_path" {
+  description = "Path to the Python dependencies Lambda layer zip."
+  type        = string
+  default     = "../build/python_dependencies_layer.zip"
 }
 
 variable "ingestion_schedule_expression" {

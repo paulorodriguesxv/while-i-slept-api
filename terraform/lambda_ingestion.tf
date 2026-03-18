@@ -9,9 +9,12 @@ resource "aws_lambda_function" "ingestion" {
   function_name = "${local.resource_prefix}-ingestion"
   role          = var.use_localstack ? "arn:aws:iam::000000000000:role/${local.resource_prefix}-ingestion-lambda-role" : aws_iam_role.ingestion_lambda_role[0].arn
   runtime       = "python3.12"
-  handler       = "ingestion.handler"
+  handler       = "handler.handler"
   timeout       = 120
   memory_size   = 512
+  layers = [
+    aws_lambda_layer_version.python_dependencies.arn,
+  ]
 
   filename         = var.lambda_ingestion_package_path
   source_code_hash = fileexists(var.lambda_ingestion_package_path) ? filebase64sha256(var.lambda_ingestion_package_path) : null

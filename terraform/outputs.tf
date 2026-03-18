@@ -102,3 +102,8 @@ output "worker_lambda_role_arn" {
   description = "Worker Lambda IAM role ARN (null when use_localstack=true)."
   value       = var.use_localstack ? null : aws_iam_role.worker_lambda_role[0].arn
 }
+
+output "python_dependencies_layer_arn" {
+  description = "Shared Python dependencies Lambda Layer ARN."
+  value       = aws_lambda_layer_version.python_dependencies.arn
+}

@@ -6,6 +6,7 @@ It provisions only the MVP base infrastructure:
 - 4 DynamoDB tables aligned with the backend architecture
 - 1 SQS queue for summary jobs
 - 1 dead-letter queue (DLQ) for summary jobs
+- 1 shared Lambda Layer for Python dependencies
 - 1 API Lambda function
 - 1 worker Lambda function with SQS trigger
 - 1 ingestion Lambda function
@@ -25,6 +26,7 @@ It intentionally does **not** include API Gateway resources yet.
 - `locals.tf`: common locals (naming + tags)
 - `main.tf`: DynamoDB + SQS resources
 - `iam.tf`: IAM roles and least-privilege policies for API, worker, and ingestion Lambdas
+- `lambda_layer.tf`: shared Python dependencies Lambda Layer
 - `lambda_api.tf`: API Lambda function and CloudWatch log group
 - `lambda_worker.tf`: worker Lambda function, CloudWatch log group, and SQS event source mapping
 - `lambda_ingestion.tf`: ingestion Lambda function and CloudWatch log group
@@ -95,6 +97,7 @@ docker compose up localstack
 ```bash
 cd terraform
 terraform init
+make -C .. build
 terraform apply -var-file=local.tfvars
 ```
 
@@ -112,6 +115,9 @@ If Dynamodb present the error "Table already exists", maybe you will need to run
 
 ```bash
 terraform import -var-file=local.tfvars aws_dynamodb_table.articles while-i-slept-local-articles
+terraform import -var-file=local.tfvars aws_dynamodb_table.briefings while-i-slept-local-briefings
+terraform import -var-file=local.tfvars aws_dynamodb_table.devices while-i-slept-local-devices
+terraform import -var-file=local.tfvars aws_dynamodb_table.users while-i-slept-local-users
 ```
 
 ## Running Terraform on AWS
@@ -121,6 +127,7 @@ Create your production vars file from the example and apply:
 ```bash
 cp prod.tfvars.example prod.tfvars
 terraform init
+make -C .. build
 terraform apply -var-file=prod.tfvars
 ```
 
@@ -132,9 +139,10 @@ The API Lambda runs the FastAPI backend with Python 3.12.
 
 - Lambda function: `${project_name}-${environment}-api`
 - Runtime: `python3.12`
-- Handler: `run.sh`
+- Handler: `handler.handler`
 - Timeout: `15s`
 - Memory: `512 MB`
+- Layer: `${project_name}-${environment}-python-dependencies`
 
 IAM permissions (least privilege) are split by concern:
 
@@ -179,9 +187,10 @@ Flow:
 Ingestion Lambda configuration:
 - Lambda function: `${project_name}-${environment}-ingestion`
 - Runtime: `python3.12`
-- Handler: `ingestion.handler`
+- Handler: `handler.handler`
 - Timeout: `120s`
 - Memory: `512 MB`
+- Layer: `${project_name}-${environment}-python-dependencies`
 
 Ingestion Lambda IAM permissions (least privilege):
 - CloudWatch Logs:
@@ -216,10 +225,11 @@ Flow:
 Worker Lambda configuration:
 - Lambda function: `${project_name}-${environment}-worker`
 - Runtime: `python3.12`
-- Handler: `worker.handler`
+- Handler: `handler.handler`
 - Timeout: `60s`
 - Memory: `512 MB`
 - SQS batch size: `5`
+- Layer: `${project_name}-${environment}-python-dependencies`
 
 Worker Lambda IAM permissions (least privilege):
 - CloudWatch Logs:
@@ -250,6 +260,7 @@ Deploy infrastructure:
 ```bash
 cd terraform
 terraform init
+make -C .. build
 terraform apply -var-file=local.tfvars
 ```
 
@@ -260,6 +271,22 @@ awslocal lambda list-functions
 awslocal events list-rules
 awslocal sqs list-queues
 ```
+
+## Lambda Packaging
+
+From repository root:
+
+```bash
+make build-layer
+make build-lambdas
+make build
+```
+
+Artifacts produced:
+- `build/python_dependencies_layer.zip`
+- `build/api_lambda.zip`
+- `build/worker_lambda.zip`
+- `build/ingestion_lambda.zip`
 
 ## Destroying Infrastructure
 
@@ -311,6 +338,7 @@ terraform destroy -var-file=prod.tfvars
 
 - `aws_sqs_queue.summary_jobs_dlq`
 
+- `aws_lambda_layer_version.python_dependencies`
 - `aws_lambda_function.api`
 - `aws_lambda_function.worker`
 - `aws_lambda_function.ingestion`
