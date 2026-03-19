@@ -99,7 +99,7 @@ docker compose up localstack
 ```bash
 cd terraform
 terraform init
-make -C .. build
+make -C .. build-local
 terraform apply -var-file=local.tfvars
 ```
 
@@ -110,6 +110,8 @@ When `use_localstack = true`, the provider points DynamoDB and SQS to:
 and uses local test credentials with AWS account checks disabled.
 
 Lambda and EventBridge resources are also created in LocalStack mode to simulate the end-to-end AWS architecture locally.
+
+`local.tfvars` sets `use_lambda_layer = false`, so dependencies are embedded in each Lambda zip (LocalStack Community does not apply layers at invocation time).
 
 If DynamoDB tables already exist in LocalStack, import each one before apply.
 
@@ -274,7 +276,7 @@ Deploy infrastructure:
 ```bash
 cd terraform
 terraform init
-make -C .. build
+make -C .. build-local
 terraform apply -var-file=local.tfvars
 ```
 
@@ -294,13 +296,16 @@ From repository root:
 make build-layer
 make build-lambdas
 make build
+make build-local
 ```
 
 Artifacts produced:
-- `build/python_dependencies_layer.zip`
 - `build/api_lambda.zip`
 - `build/worker_lambda.zip`
 - `build/ingestion_lambda.zip`
+
+Additional artifact in layer mode (`make build`):
+- `build/python_dependencies_layer.zip`
 
 ## Destroying Infrastructure
 

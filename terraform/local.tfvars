@@ -3,6 +3,7 @@ environment  = "local"
 aws_region   = "us-east-1"
 
 use_localstack        = true
+use_lambda_layer      = false
 dynamodb_billing_mode = "PAY_PER_REQUEST"
 
 summary_queue_visibility_timeout_seconds = 30

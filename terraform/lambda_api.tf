@@ -12,9 +12,9 @@ resource "aws_lambda_function" "api" {
   handler       = "handler.handler"
   timeout       = 15
   memory_size   = 512
-  layers = [
-    aws_lambda_layer_version.python_dependencies.arn,
-  ]
+  layers = var.use_lambda_layer ? [
+    aws_lambda_layer_version.python_dependencies[0].arn,
+  ] : []
 
   filename         = var.lambda_api_package_path
   source_code_hash = fileexists(var.lambda_api_package_path) ? filebase64sha256(var.lambda_api_package_path) : null

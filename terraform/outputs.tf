@@ -104,8 +104,8 @@ output "worker_lambda_role_arn" {
 }
 
 output "python_dependencies_layer_arn" {
-  description = "Shared Python dependencies Lambda Layer ARN."
-  value       = aws_lambda_layer_version.python_dependencies.arn
+  description = "Shared Python dependencies Lambda Layer ARN (null when use_lambda_layer=false)."
+  value       = var.use_lambda_layer ? aws_lambda_layer_version.python_dependencies[0].arn : null
 }
 
 output "api_endpoint" {

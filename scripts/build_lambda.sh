@@ -15,6 +15,12 @@ cp -r src/while_i_slept_api "${BUILD_DIR}/"
 # Copy lambda handler
 cp -r lambda/${LAMBDA_NAME}/* "${BUILD_DIR}/"
 
+# Conditionally install dependencies inside package (LocalStack mode).
+if [ "${USE_LAMBDA_LAYER:-true}" = "false" ]; then
+  echo "Installing dependencies inside Lambda package (LocalStack mode)..."
+  pip install -r "${ROOT_DIR}/requirements.txt" -t "${BUILD_DIR}"
+fi
+
 python3 - <<PY
 import os
 import zipfile

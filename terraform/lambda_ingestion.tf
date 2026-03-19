@@ -12,9 +12,9 @@ resource "aws_lambda_function" "ingestion" {
   handler       = "handler.handler"
   timeout       = 120
   memory_size   = 512
-  layers = [
-    aws_lambda_layer_version.python_dependencies.arn,
-  ]
+  layers = var.use_lambda_layer ? [
+    aws_lambda_layer_version.python_dependencies[0].arn,
+  ] : []
 
   filename         = var.lambda_ingestion_package_path
   source_code_hash = fileexists(var.lambda_ingestion_package_path) ? filebase64sha256(var.lambda_ingestion_package_path) : null

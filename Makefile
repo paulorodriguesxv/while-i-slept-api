@@ -147,19 +147,19 @@ summary-pipeline-worker: ##@summary-pipeline-worker Run the local worker for the
 
 .PHONY: build-layer
 build-layer: ##@build Build shared Lambda layer dependencies package
-	docker compose run --rm lambda-builder bash scripts/build_layer.sh
+	docker compose run --rm --user $$(id -u):$$(id -g) lambda-builder bash scripts/build_layer.sh
 
 .PHONY: build-api
 build-api: ##@build Build API Lambda package
-	docker compose run --rm lambda-builder bash scripts/build_lambda.sh api
+	docker compose run --rm --user $$(id -u):$$(id -g) lambda-builder bash scripts/build_lambda.sh api
 
 .PHONY: build-worker
 build-worker: ##@build Build worker Lambda package
-	docker compose run --rm lambda-builder bash scripts/build_lambda.sh worker
+	docker compose run --rm --user $$(id -u):$$(id -g) lambda-builder bash scripts/build_lambda.sh worker
 
 .PHONY: build-ingestion
 build-ingestion: ##@build Build ingestion Lambda package
-	docker compose run --rm lambda-builder bash scripts/build_lambda.sh ingestion
+	docker compose run --rm --user $$(id -u):$$(id -g) lambda-builder bash scripts/build_lambda.sh ingestion
 
 .PHONY: build-lambdas
 build-lambdas: ##@build Build all Lambda function packages
@@ -169,6 +169,12 @@ build-lambdas: build-api build-worker build-ingestion
 build: ##@build Build shared layer and all Lambda packages
 build: build-layer build-lambdas
 
+.PHONY: build-local
+build-local: ##@build Build Lambda packages with embedded dependencies (LocalStack mode)
+	docker compose run --rm --user $$(id -u):$$(id -g) -e USE_LAMBDA_LAYER=false lambda-builder bash scripts/build_lambda.sh api
+	docker compose run --rm --user $$(id -u):$$(id -g) -e USE_LAMBDA_LAYER=false lambda-builder bash scripts/build_lambda.sh worker
+	docker compose run --rm --user $$(id -u):$$(id -g) -e USE_LAMBDA_LAYER=false lambda-builder bash scripts/build_lambda.sh ingestion
+
 .PHONY: clean-build
 clean-build: ##@build Remove generated Lambda build artifacts
-	rm -rf build
+	docker compose run --rm lambda-builder bash -lc "rm -rf /app/build"

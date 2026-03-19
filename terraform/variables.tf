@@ -22,6 +22,12 @@ variable "use_localstack" {
   default     = false
 }
 
+variable "use_lambda_layer" {
+  description = "Use shared Lambda Layer for dependencies instead of embedding dependencies in function zip."
+  type        = bool
+  default     = true
+}
+
 variable "dynamodb_billing_mode" {
   description = "DynamoDB billing mode for all application tables."
   type        = string
