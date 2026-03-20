@@ -94,6 +94,16 @@ Covered core logic:
 - Entitlement gating and premium checks
 - Briefing item limits for free vs premium
 
+## Development Environment (AWS)
+
+Use a real AWS development stack managed by Terraform:
+
+```bash
+make deploy-dev
+```
+
+This workflow creates AWS resources isolated by the `dev` environment prefix (for example, `while-i-slept-dev-*`) so development stays separate from production. It is safe for iterative development and designed to remain low cost with serverless primitives and on-demand DynamoDB billing.
+
 ## Notes
 
 - Signup is implicit on first Apple/Google login.

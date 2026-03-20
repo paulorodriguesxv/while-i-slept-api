@@ -7,7 +7,7 @@ resource "aws_cloudwatch_log_group" "worker" {
 
 resource "aws_lambda_function" "worker" {
   function_name = "${local.resource_prefix}-worker"
-  role          = var.use_localstack ? "arn:aws:iam::000000000000:role/${local.resource_prefix}-worker-lambda-role" : aws_iam_role.worker_lambda_role[0].arn
+  role          = aws_iam_role.worker_lambda_role.arn
   runtime       = "python3.12"
   handler       = "handler.handler"
   timeout       = 60
@@ -22,7 +22,10 @@ resource "aws_lambda_function" "worker" {
   environment {
     variables = {
       APP_ENV              = var.environment
+      AWS_REGION           = var.aws_region
       ARTICLES_TABLE_NAME  = aws_dynamodb_table.articles.name
+      USERS_TABLE_NAME     = aws_dynamodb_table.users.name
+      DEVICES_TABLE_NAME   = aws_dynamodb_table.devices.name
       BRIEFINGS_TABLE_NAME = aws_dynamodb_table.briefings.name
       SUMMARY_QUEUE_URL    = aws_sqs_queue.summary_jobs.id
     }

@@ -30,13 +30,27 @@ help: ##@help Show this help message.
 
 .DEFAULT_GOAL := help
 
+.PHONY: deploy-dev
+deploy-dev: ##@infra Deploy AWS development environment with Terraform
+	cd terraform && terraform init
+	cd terraform && terraform apply -auto-approve -var-file=dev.tfvars
+
+.PHONY: destroy-dev
+destroy-dev: ##@infra Destroy AWS development environment with Terraform
+	cd terraform && terraform init
+	cd terraform && terraform destroy -auto-approve -var-file=dev.tfvars
+
+.PHONY: test-ingestion
+test-ingestion: ##@infra Invoke ingestion Lambda in AWS dev
+	aws lambda invoke --function-name while-i-slept-dev-ingestion out.json
+
 
 .PHONY: infra-up
-infra-up: ##@infra-up Start localstack
+infra-up: ##@infra-up [Deprecated] Start LocalStack
 	docker compose up -d localstack
 
 .PHONY: infra-down
-infra-down: ##@infra-down Stop and remove localstack
+infra-down: ##@infra-down [Deprecated] Stop and remove LocalStack
 	docker compose stop localstack
 	docker compose rm -f localstack
 
@@ -46,7 +60,7 @@ migrate: infra-up
 	docker compose run --rm api python scripts/create_tables.py
 
 .PHONY: up
-up: ##@up Start the API and localstack
+up: ##@up Start the API and local infrastructure
 up:	infra-up \
 	migrate
 	docker compose up -d api
@@ -56,7 +70,7 @@ down: ##@down Stop and remove all containers
 	docker compose down --remove-orphans
 
 .PHONY: logs
-logs: ##@logs Tail logs for API and localstack
+logs: ##@logs Tail logs for local services
 	docker compose logs -f api localstack
 
 .PHONY: test
@@ -127,11 +141,10 @@ summary-worker-loop: ##@summary-worker-loop Continuously run the local worker fo
 
 .PHONY: inspect-db
 inspect-db: ##@inspect-db Inspect the contents of the DynamoDB table
-	docker compose run --rm api sh -lc \
-	"aws dynamodb scan --table-name while-i-slept --endpoint-url http://localstack:4566"
+	aws dynamodb scan --table-name $${TABLE_NAME:-while-i-slept-dev-articles}
 
 .PHONY: clean-dynamo-tables
-clean-dynamo-tables: ##@clean-dynamo-tables Remove all LocalStack DynamoDB tables and recreate app tables
+clean-dynamo-tables: ##@clean-dynamo-tables Remove all local DynamoDB tables and recreate app tables
 clean-dynamo-tables: infra-up
 	docker compose run --rm api sh -lc "python scripts/clean_dynamo_tables.py"
 	docker compose run --rm api sh -lc "python scripts/create_tables.py"
@@ -170,7 +183,7 @@ build: ##@build Build shared layer and all Lambda packages
 build: build-layer build-lambdas
 
 .PHONY: build-local
-build-local: ##@build Build Lambda packages with embedded dependencies (LocalStack mode)
+build-local: ##@build [Deprecated] Build Lambda packages with embedded dependencies (LocalStack mode)
 	docker compose run --rm --user $$(id -u):$$(id -g) -e USE_LAMBDA_LAYER=false lambda-builder bash scripts/build_lambda.sh api
 	docker compose run --rm --user $$(id -u):$$(id -g) -e USE_LAMBDA_LAYER=false lambda-builder bash scripts/build_lambda.sh worker
 	docker compose run --rm --user $$(id -u):$$(id -g) -e USE_LAMBDA_LAYER=false lambda-builder bash scripts/build_lambda.sh ingestion

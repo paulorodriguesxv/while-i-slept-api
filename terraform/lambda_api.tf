@@ -7,7 +7,7 @@ resource "aws_cloudwatch_log_group" "api" {
 
 resource "aws_lambda_function" "api" {
   function_name = "${local.resource_prefix}-api"
-  role          = var.use_localstack ? "arn:aws:iam::000000000000:role/${local.resource_prefix}-api-lambda-role" : aws_iam_role.api_lambda_role[0].arn
+  role          = aws_iam_role.api_lambda_role.arn
   runtime       = "python3.12"
   handler       = "handler.handler"
   timeout       = 15
@@ -22,6 +22,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       APP_ENV              = var.environment
+      AWS_REGION           = var.aws_region
       ARTICLES_TABLE_NAME  = aws_dynamodb_table.articles.name
       USERS_TABLE_NAME     = aws_dynamodb_table.users.name
       DEVICES_TABLE_NAME   = aws_dynamodb_table.devices.name

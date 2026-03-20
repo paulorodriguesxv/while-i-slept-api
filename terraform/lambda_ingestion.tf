@@ -7,7 +7,7 @@ resource "aws_cloudwatch_log_group" "ingestion" {
 
 resource "aws_lambda_function" "ingestion" {
   function_name = "${local.resource_prefix}-ingestion"
-  role          = var.use_localstack ? "arn:aws:iam::000000000000:role/${local.resource_prefix}-ingestion-lambda-role" : aws_iam_role.ingestion_lambda_role[0].arn
+  role          = aws_iam_role.ingestion_lambda_role.arn
   runtime       = "python3.12"
   handler       = "handler.handler"
   timeout       = 120
@@ -21,9 +21,13 @@ resource "aws_lambda_function" "ingestion" {
 
   environment {
     variables = {
-      APP_ENV             = var.environment
-      ARTICLES_TABLE_NAME = aws_dynamodb_table.articles.name
-      SUMMARY_QUEUE_URL   = aws_sqs_queue.summary_jobs.id
+      APP_ENV              = var.environment
+      AWS_REGION           = var.aws_region
+      ARTICLES_TABLE_NAME  = aws_dynamodb_table.articles.name
+      USERS_TABLE_NAME     = aws_dynamodb_table.users.name
+      DEVICES_TABLE_NAME   = aws_dynamodb_table.devices.name
+      BRIEFINGS_TABLE_NAME = aws_dynamodb_table.briefings.name
+      SUMMARY_QUEUE_URL    = aws_sqs_queue.summary_jobs.id
     }
   }
 

@@ -79,8 +79,8 @@ output "api_lambda_function_name" {
 }
 
 output "api_lambda_role_arn" {
-  description = "API Lambda IAM role ARN (null when use_localstack=true)."
-  value       = var.use_localstack ? null : aws_iam_role.api_lambda_role[0].arn
+  description = "API Lambda IAM role ARN."
+  value       = aws_iam_role.api_lambda_role.arn
 }
 
 output "ingestion_lambda_function_name" {
@@ -99,8 +99,8 @@ output "worker_lambda_function_name" {
 }
 
 output "worker_lambda_role_arn" {
-  description = "Worker Lambda IAM role ARN (null when use_localstack=true)."
-  value       = var.use_localstack ? null : aws_iam_role.worker_lambda_role[0].arn
+  description = "Worker Lambda IAM role ARN."
+  value       = aws_iam_role.worker_lambda_role.arn
 }
 
 output "python_dependencies_layer_arn" {
@@ -110,5 +110,5 @@ output "python_dependencies_layer_arn" {
 
 output "api_endpoint" {
   description = "Public API endpoint for the FastAPI Lambda."
-  value       = var.use_localstack ? aws_api_gateway_stage.default_local[0].invoke_url : aws_apigatewayv2_api.api[0].api_endpoint
+  value       = aws_apigatewayv2_api.api.api_endpoint
 }

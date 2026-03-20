@@ -1,13 +1,13 @@
 variable "project_name" {
   description = "Project slug used in resource naming."
   type        = string
-  default     = "while-i-slept-api"
+  default     = "while-i-slept"
 }
 
 variable "environment" {
   description = "Deployment environment (e.g. development, staging, production)."
   type        = string
-  default     = "development"
+  default     = "dev"
 }
 
 variable "aws_region" {
@@ -16,10 +16,10 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "use_localstack" {
-  description = "Use LocalStack endpoints and local credentials instead of AWS."
-  type        = bool
-  default     = false
+variable "aws_profile" {
+  description = "AWS CLI profile to use for authentication."
+  type        = string
+  default     = "default"
 }
 
 variable "use_lambda_layer" {

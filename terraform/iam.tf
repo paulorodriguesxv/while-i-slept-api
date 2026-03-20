@@ -13,7 +13,6 @@ data "aws_iam_policy_document" "api_lambda_assume_role" {
 }
 
 resource "aws_iam_role" "api_lambda_role" {
-  count = var.use_localstack ? 0 : 1
 
   name               = "${local.resource_prefix}-api-lambda-role"
   assume_role_policy = data.aws_iam_policy_document.api_lambda_assume_role.json
@@ -44,7 +43,6 @@ data "aws_iam_policy_document" "api_lambda_logs" {
 }
 
 resource "aws_iam_policy" "api_lambda_logs" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-api-lambda-logs"
   policy = data.aws_iam_policy_document.api_lambda_logs.json
@@ -73,7 +71,6 @@ data "aws_iam_policy_document" "api_lambda_dynamodb" {
 }
 
 resource "aws_iam_policy" "api_lambda_dynamodb" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-api-lambda-dynamodb"
   policy = data.aws_iam_policy_document.api_lambda_dynamodb.json
@@ -97,7 +94,6 @@ data "aws_iam_policy_document" "api_lambda_sqs" {
 }
 
 resource "aws_iam_policy" "api_lambda_sqs" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-api-lambda-sqs"
   policy = data.aws_iam_policy_document.api_lambda_sqs.json
@@ -106,24 +102,21 @@ resource "aws_iam_policy" "api_lambda_sqs" {
 }
 
 resource "aws_iam_role_policy_attachment" "api_lambda_logs" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.api_lambda_role[0].name
-  policy_arn = aws_iam_policy.api_lambda_logs[0].arn
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.api_lambda_logs.arn
 }
 
 resource "aws_iam_role_policy_attachment" "api_lambda_dynamodb" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.api_lambda_role[0].name
-  policy_arn = aws_iam_policy.api_lambda_dynamodb[0].arn
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.api_lambda_dynamodb.arn
 }
 
 resource "aws_iam_role_policy_attachment" "api_lambda_sqs" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.api_lambda_role[0].name
-  policy_arn = aws_iam_policy.api_lambda_sqs[0].arn
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.api_lambda_sqs.arn
 }
 
 data "aws_iam_policy_document" "ingestion_lambda_assume_role" {
@@ -141,7 +134,6 @@ data "aws_iam_policy_document" "ingestion_lambda_assume_role" {
 }
 
 resource "aws_iam_role" "ingestion_lambda_role" {
-  count = var.use_localstack ? 0 : 1
 
   name               = "${local.resource_prefix}-ingestion-lambda-role"
   assume_role_policy = data.aws_iam_policy_document.ingestion_lambda_assume_role.json
@@ -172,7 +164,6 @@ data "aws_iam_policy_document" "ingestion_lambda_logs" {
 }
 
 resource "aws_iam_policy" "ingestion_lambda_logs" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-ingestion-lambda-logs"
   policy = data.aws_iam_policy_document.ingestion_lambda_logs.json
@@ -197,7 +188,6 @@ data "aws_iam_policy_document" "ingestion_lambda_dynamodb" {
 }
 
 resource "aws_iam_policy" "ingestion_lambda_dynamodb" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-ingestion-lambda-dynamodb"
   policy = data.aws_iam_policy_document.ingestion_lambda_dynamodb.json
@@ -218,7 +208,6 @@ data "aws_iam_policy_document" "ingestion_lambda_sqs" {
 }
 
 resource "aws_iam_policy" "ingestion_lambda_sqs" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-ingestion-lambda-sqs"
   policy = data.aws_iam_policy_document.ingestion_lambda_sqs.json
@@ -227,24 +216,21 @@ resource "aws_iam_policy" "ingestion_lambda_sqs" {
 }
 
 resource "aws_iam_role_policy_attachment" "ingestion_lambda_logs" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.ingestion_lambda_role[0].name
-  policy_arn = aws_iam_policy.ingestion_lambda_logs[0].arn
+  role       = aws_iam_role.ingestion_lambda_role.name
+  policy_arn = aws_iam_policy.ingestion_lambda_logs.arn
 }
 
 resource "aws_iam_role_policy_attachment" "ingestion_lambda_dynamodb" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.ingestion_lambda_role[0].name
-  policy_arn = aws_iam_policy.ingestion_lambda_dynamodb[0].arn
+  role       = aws_iam_role.ingestion_lambda_role.name
+  policy_arn = aws_iam_policy.ingestion_lambda_dynamodb.arn
 }
 
 resource "aws_iam_role_policy_attachment" "ingestion_lambda_sqs" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.ingestion_lambda_role[0].name
-  policy_arn = aws_iam_policy.ingestion_lambda_sqs[0].arn
+  role       = aws_iam_role.ingestion_lambda_role.name
+  policy_arn = aws_iam_policy.ingestion_lambda_sqs.arn
 }
 
 data "aws_iam_policy_document" "worker_lambda_assume_role" {
@@ -262,7 +248,6 @@ data "aws_iam_policy_document" "worker_lambda_assume_role" {
 }
 
 resource "aws_iam_role" "worker_lambda_role" {
-  count = var.use_localstack ? 0 : 1
 
   name               = "${local.resource_prefix}-worker-lambda-role"
   assume_role_policy = data.aws_iam_policy_document.worker_lambda_assume_role.json
@@ -293,7 +278,6 @@ data "aws_iam_policy_document" "worker_lambda_logs" {
 }
 
 resource "aws_iam_policy" "worker_lambda_logs" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-worker-lambda-logs"
   policy = data.aws_iam_policy_document.worker_lambda_logs.json
@@ -319,7 +303,6 @@ data "aws_iam_policy_document" "worker_lambda_dynamodb" {
 }
 
 resource "aws_iam_policy" "worker_lambda_dynamodb" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-worker-lambda-dynamodb"
   policy = data.aws_iam_policy_document.worker_lambda_dynamodb.json
@@ -342,7 +325,6 @@ data "aws_iam_policy_document" "worker_lambda_sqs" {
 }
 
 resource "aws_iam_policy" "worker_lambda_sqs" {
-  count = var.use_localstack ? 0 : 1
 
   name   = "${local.resource_prefix}-worker-lambda-sqs"
   policy = data.aws_iam_policy_document.worker_lambda_sqs.json
@@ -351,22 +333,19 @@ resource "aws_iam_policy" "worker_lambda_sqs" {
 }
 
 resource "aws_iam_role_policy_attachment" "worker_lambda_logs" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.worker_lambda_role[0].name
-  policy_arn = aws_iam_policy.worker_lambda_logs[0].arn
+  role       = aws_iam_role.worker_lambda_role.name
+  policy_arn = aws_iam_policy.worker_lambda_logs.arn
 }
 
 resource "aws_iam_role_policy_attachment" "worker_lambda_dynamodb" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.worker_lambda_role[0].name
-  policy_arn = aws_iam_policy.worker_lambda_dynamodb[0].arn
+  role       = aws_iam_role.worker_lambda_role.name
+  policy_arn = aws_iam_policy.worker_lambda_dynamodb.arn
 }
 
 resource "aws_iam_role_policy_attachment" "worker_lambda_sqs" {
-  count = var.use_localstack ? 0 : 1
 
-  role       = aws_iam_role.worker_lambda_role[0].name
-  policy_arn = aws_iam_policy.worker_lambda_sqs[0].arn
+  role       = aws_iam_role.worker_lambda_role.name
+  policy_arn = aws_iam_policy.worker_lambda_sqs.arn
 }
