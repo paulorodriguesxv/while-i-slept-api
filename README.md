@@ -72,7 +72,7 @@ If `APP_ALLOW_INSECURE_OAUTH_TOKENS=true`, non-stub tokens are accepted in dev a
 
 - Set `APP_STORAGE_BACKEND=dynamodb`
 - Configure:
-  - `APP_DYNAMODB_ENDPOINT_URL`
+  - `APP_AWS_ENDPOINT_URL`
   - `APP_USERS_TABLE`
   - `APP_DEVICES_TABLE`
   - `APP_BRIEFINGS_TABLE`
@@ -93,6 +93,16 @@ Covered core logic:
 - Stub OAuth token validation behavior
 - Entitlement gating and premium checks
 - Briefing item limits for free vs premium
+
+## Development Environment (AWS)
+
+Use a real AWS development stack managed by Terraform:
+
+```bash
+make deploy-dev
+```
+
+This workflow creates AWS resources isolated by the `dev` environment prefix (for example, `while-i-slept-dev-*`) so development stays separate from production. It is safe for iterative development and designed to remain low cost with serverless primitives and on-demand DynamoDB billing.
 
 ## Notes
 

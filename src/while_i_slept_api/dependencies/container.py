@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-import os
 from typing import Annotated
 
 from fastapi import Depends
@@ -46,7 +45,7 @@ def get_repository_bundle_cached() -> RepositoryBundle:
     """Build and cache the repository bundle."""
 
     settings = get_settings()
-    repo_backend = (os.getenv("REPO_BACKEND") or settings.storage_backend or "memory").lower()
+    repo_backend = (settings.storage_backend or "memory").lower()
     if repo_backend == "dynamodb":
         factory = DynamoTableFactory(settings)
         return RepositoryBundle(
@@ -148,7 +147,7 @@ def get_revenuecat_event_repository_cached() -> RevenueCatEventRepository:
     """Build and cache RevenueCat event idempotency repository."""
 
     settings = get_settings()
-    repo_backend = (os.getenv("REPO_BACKEND") or settings.storage_backend or "memory").lower()
+    repo_backend = (settings.storage_backend or "memory").lower()
     if repo_backend == "dynamodb":
         factory = DynamoTableFactory(settings)
         return DynamoRevenueCatEventRepository(factory.users())

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-import os
 from typing import Any, cast
 
 from while_i_slept_api.article_pipeline.keys import article_pk, feed_pk, feed_pk_for_date, feed_sk, raw_sk, summary_sk
 from while_i_slept_api.article_pipeline.models import RawArticle, SummaryState
 from while_i_slept_api.article_pipeline.ports import ArticleSummaryRepository
+from while_i_slept_api.core.config import Settings
 from while_i_slept_api.services.utils import iso_now
 
 
@@ -62,7 +62,7 @@ class DynamoArticleSummaryRepository(ArticleSummaryRepository):
 
     @classmethod
     def from_resource(cls, resource: Any, table_name: str | None = None) -> "DynamoArticleSummaryRepository":
-        resolved_table_name = table_name or os.getenv("DYNAMO_TABLE_NAME", "articles")
+        resolved_table_name = table_name or Settings().articles_table
         return cls(resource.Table(resolved_table_name))
 
     def put_raw_article_if_absent(self, article: RawArticle) -> bool:

@@ -8,7 +8,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from dataclasses import asdict
 from decimal import Decimal
-import os
 from typing import Any, cast
 
 from while_i_slept_api.core.config import Settings
@@ -73,11 +72,7 @@ class DynamoTableFactory:
         if self._resource is None:
             import boto3  # Imported lazily so tests can run without boto3 installed.
 
-            endpoint_url = (
-                self._settings.dynamodb_endpoint_url
-                or os.getenv("DYNAMODB_ENDPOINT_URL")
-                or os.getenv("AWS_ENDPOINT_URL")
-            )
+            endpoint_url = self._settings.aws_endpoint_url
             self._resource = boto3.resource(
                 "dynamodb",
                 region_name=self._settings.aws_region,

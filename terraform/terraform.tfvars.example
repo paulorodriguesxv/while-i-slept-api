@@ -1,0 +1,11 @@
+project_name      = "while-i-slept"
+environment       = "dev"
+aws_region        = "us-east-1"
+use_lambda_layer  = true
+
+dynamodb_billing_mode = "PAY_PER_REQUEST"
+
+summary_queue_visibility_timeout_seconds = 60
+summary_queue_message_retention_seconds  = 345600
+
+lambda_api_package_path = "build/api_lambda.zip"

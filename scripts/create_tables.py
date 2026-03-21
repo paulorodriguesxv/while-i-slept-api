@@ -2,31 +2,20 @@
 
 from __future__ import annotations
 
-import os
 import time
 from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.config import Settings
+from while_i_slept_api.core.logging import StructuredLogger
 
 _LOGGER = StructuredLogger("while_i_slept.create_tables")
 
 
-def _env(name: str, default: str | None = None) -> str:
-    value = os.getenv(name, default)
-    if value is None or value == "":
-        raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
-
-
-def _dynamodb_client():
-    endpoint_url = (
-        os.getenv("APP_DYNAMODB_ENDPOINT_URL")
-        or os.getenv("DYNAMODB_ENDPOINT_URL")
-        or os.getenv("AWS_ENDPOINT_URL")
-    )
-    region = os.getenv("APP_AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+def _dynamodb_client(settings: Settings):
+    endpoint_url = settings.aws_endpoint_url
+    region = settings.aws_region
     return boto3.client("dynamodb", region_name=region, endpoint_url=endpoint_url)
 
 
@@ -65,11 +54,12 @@ def _create_table_if_missing(client, spec: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    users_table = _env("APP_USERS_TABLE", "users")
-    devices_table = _env("APP_DEVICES_TABLE", "devices")
-    briefings_table = _env("APP_BRIEFINGS_TABLE", "briefings")
+    settings = Settings()
+    users_table = settings.users_table
+    devices_table = settings.devices_table
+    briefings_table = settings.briefings_table
 
-    client = _dynamodb_client()
+    client = _dynamodb_client(settings)
     _wait_for_endpoint(client)
 
     users_spec = {

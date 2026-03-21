@@ -5,18 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-import os
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from while_i_slept_api.article_pipeline.infrastructure import aws_clients
+from while_i_slept_api.article_pipeline.article_job_dto import ArticleJob
 from while_i_slept_api.article_pipeline.infrastructure.dynamodb_single_table import (
     DynamoArticleSummaryRepository,
     _normalize_number,
 )
-from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsSummaryJobQueue
+from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsArticleJobQueue, SqsSummaryJobQueue
 from while_i_slept_api.article_pipeline.models import RawArticle
 from while_i_slept_api.article_pipeline.dto import SummaryJob
 
@@ -144,6 +144,23 @@ def _sample_job() -> SummaryJob:
     )
 
 
+def _sample_article_job() -> ArticleJob:
+    return ArticleJob.from_payload(
+        {
+            "version": 1,
+            "entry_id": "entry_1",
+            "language": "en",
+            "topic": "world",
+            "source": "Example",
+            "source_feed_url": "https://example.com/feed",
+            "article_url": "https://example.com/story",
+            "title": "Story",
+            "summary": "Short summary",
+            "published_at": "2026-02-27T10:00:00Z",
+        }
+    )
+
+
 def test_normalize_number_handles_nested_decimals() -> None:
     value = {"a": Decimal("1"), "b": [Decimal("2.5"), {"c": Decimal("3")}]}
     assert _normalize_number(value) == {"a": 1, "b": [2.5, {"c": 3}]}
@@ -228,7 +245,7 @@ def test_dynamo_repo_persists_optional_raw_metadata_fields() -> None:
 def test_dynamo_repo_from_resource_uses_env_default(monkeypatch: pytest.MonkeyPatch) -> None:
     table = _FakeTable()
     resource = _FakeResource(table)
-    monkeypatch.setenv("DYNAMO_TABLE_NAME", "articles_env")
+    monkeypatch.setenv("APP_ARTICLES_TABLE", "articles_env")
 
     repo = DynamoArticleSummaryRepository.from_resource(resource)
 
@@ -247,9 +264,32 @@ def test_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPatch) -> 
         def send_message(self, **kwargs: Any) -> None:
             calls.append({"fn": "send_message", **kwargs})
 
-    monkeypatch.setenv("SQS_QUEUE_NAME", "summary-jobs")
+    monkeypatch.setenv("APP_SUMMARY_JOBS_QUEUE_NAME", "summary-jobs")
+    monkeypatch.delenv("APP_SUMMARY_JOBS_QUEUE_URL", raising=False)
     queue = SqsSummaryJobQueue(_Client())
     job = _sample_job()
+    queue.enqueue(job)
+    queue.enqueue(job)
+
+    assert len([call for call in calls if call["fn"] == "get_queue_url"]) == 1
+    assert len([call for call in calls if call["fn"] == "send_message"]) == 2
+
+
+def test_article_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class _Client:
+        def get_queue_url(self, QueueName: str) -> dict[str, str]:  # noqa: N803
+            calls.append({"fn": "get_queue_url", "QueueName": QueueName})
+            return {"QueueUrl": "https://example/article-jobs"}
+
+        def send_message(self, **kwargs: Any) -> None:
+            calls.append({"fn": "send_message", **kwargs})
+
+    monkeypatch.setenv("APP_ARTICLE_JOBS_QUEUE_NAME", "article-jobs")
+    monkeypatch.delenv("APP_ARTICLE_JOBS_QUEUE_URL", raising=False)
+    queue = SqsArticleJobQueue(_Client())
+    job = _sample_article_job()
     queue.enqueue(job)
     queue.enqueue(job)
 
@@ -260,8 +300,8 @@ def test_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPatch) -> 
 def test_aws_client_factory_uses_resolved_env(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeBoto3(resource_calls=[], client_calls=[])
     monkeypatch.setattr(aws_clients, "boto3", fake)
-    monkeypatch.setenv("AWS_REGION", "us-east-2")
-    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localstack:4566")
+    monkeypatch.setenv("APP_AWS_REGION", "us-east-2")
+    monkeypatch.setenv("APP_AWS_ENDPOINT_URL", "http://localstack:4566")
 
     factory = aws_clients.AwsClientFactory()
     resource = factory.dynamodb_resource()

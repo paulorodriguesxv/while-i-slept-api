@@ -6,8 +6,9 @@ from datetime import timedelta
 
 import pytest
 
+from while_i_slept_api.article_pipeline.article_job_dto import ArticleJob
 from while_i_slept_api.article_pipeline.dto import SummaryJob
-from while_i_slept_api.article_pipeline.errors import SummaryJobValidationError
+from while_i_slept_api.article_pipeline.errors import ArticleJobValidationError, SummaryJobValidationError
 
 
 def _payload() -> dict[str, object]:
@@ -42,3 +43,41 @@ def test_summary_job_contract_rejects_invalid_version() -> None:
     with pytest.raises(SummaryJobValidationError):
         SummaryJob.from_payload(payload)
 
+
+def test_article_job_contract_deserialization() -> None:
+    job = ArticleJob.from_payload(
+        {
+            "version": 1,
+            "entry_id": "entry_1",
+            "language": "en",
+            "topic": "world",
+            "source": "Example",
+            "source_feed_url": "https://example.com/feed",
+            "article_url": "https://example.com/story",
+            "title": "Story title",
+            "summary": "Short summary",
+            "published_at": "2026-02-27T10:00:00Z",
+        }
+    )
+
+    assert job.version == 1
+    assert job.entry_id == "entry_1"
+    assert job.published_at.utcoffset() == timedelta(0)
+
+
+def test_article_job_contract_rejects_invalid_version() -> None:
+    payload: dict[str, object] = {
+        "version": 2,
+        "entry_id": "entry_1",
+        "language": "en",
+        "topic": "world",
+        "source": "Example",
+        "source_feed_url": "https://example.com/feed",
+        "article_url": "https://example.com/story",
+        "title": "Story title",
+        "summary": "Short summary",
+        "published_at": "2026-02-27T10:00:00Z",
+    }
+
+    with pytest.raises(ArticleJobValidationError):
+        ArticleJob.from_payload(payload)

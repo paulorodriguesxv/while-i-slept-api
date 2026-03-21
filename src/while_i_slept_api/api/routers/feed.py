@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from functools import lru_cache
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -15,6 +14,7 @@ from while_i_slept_api.article_pipeline.feed_query import GetSleepWindowFeedUseC
 from while_i_slept_api.article_pipeline.feed_query.dto import SleepWindowItem
 from while_i_slept_api.article_pipeline.infrastructure.aws_clients import AwsClientFactory
 from while_i_slept_api.article_pipeline.infrastructure.dynamodb_single_table import DynamoArticleSummaryRepository
+from while_i_slept_api.core.config import get_settings
 from while_i_slept_api.dependencies.container import get_current_user
 from while_i_slept_api.dependencies.container import get_user_service
 from while_i_slept_api.domain.models import UserProfile
@@ -59,9 +59,10 @@ def build_feed_repository() -> DynamoArticleSummaryRepository:
     """Build repository for feed and preferences queries."""
 
     factory = AwsClientFactory()
+    table_name = get_settings().articles_table
     return DynamoArticleSummaryRepository.from_resource(
         factory.dynamodb_resource(),
-        table_name=os.getenv("DYNAMO_TABLE_NAME", "articles"),
+        table_name=table_name,
     )
 
 

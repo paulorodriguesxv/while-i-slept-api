@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-import os
 from typing import Any
 
+from while_i_slept_api.core.config import Settings
 from while_i_slept_api.domain.models import EntitlementState
 from while_i_slept_api.repositories.base import UserRepository
 from while_i_slept_api.repositories.revenuecat_events import RevenueCatEventRepository
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.logging import StructuredLogger
 
 ACTIVATION_EVENTS = {
     "INITIAL_PURCHASE",
@@ -55,9 +55,15 @@ def _ms_to_datetime(ms: int | None) -> datetime | None:
 class RevenueCatService:
     """Processes RevenueCat webhook events into user entitlement snapshots."""
 
-    def __init__(self, users: UserRepository, event_repo: RevenueCatEventRepository) -> None:
+    def __init__(
+        self,
+        users: UserRepository,
+        event_repo: RevenueCatEventRepository,
+        settings: Settings | None = None,
+    ) -> None:
         self._users = users
         self._event_repo = event_repo
+        self._settings = settings or Settings()
         self._logger = StructuredLogger("while_i_slept.revenuecat")
 
     def process_webhook(self, payload: dict[str, Any]) -> None:
@@ -73,7 +79,7 @@ class RevenueCatService:
         event_type = str(event.get("type", "")).upper()
         environment_raw = event.get("environment")
         environment = environment_raw if isinstance(environment_raw, str) and environment_raw else None
-        app_env = os.getenv("APP_ENV", "development").lower()
+        app_env = self._settings.env.lower()
         event_id_raw = event.get("id")
         event_id = event_id_raw if isinstance(event_id_raw, str) and event_id_raw else None
 

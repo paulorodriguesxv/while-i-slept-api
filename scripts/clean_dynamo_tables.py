@@ -2,29 +2,12 @@
 
 from __future__ import annotations
 
-import os
-
 import boto3
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+
+from while_i_slept_api.core.config import Settings
+from while_i_slept_api.core.logging import StructuredLogger
 
 _LOGGER = StructuredLogger("while_i_slept.clean_dynamo_tables")
-
-
-def _resolve_region() -> str:
-    return (
-        os.getenv("APP_AWS_REGION")
-        or os.getenv("AWS_DEFAULT_REGION")
-        or os.getenv("AWS_REGION")
-        or "us-east-1"
-    )
-
-
-def _resolve_endpoint_url() -> str | None:
-    return (
-        os.getenv("APP_DYNAMODB_ENDPOINT_URL")
-        or os.getenv("DYNAMODB_ENDPOINT_URL")
-        or os.getenv("AWS_ENDPOINT_URL")
-    )
 
 
 def _list_all_tables(client: object) -> list[str]:
@@ -47,10 +30,11 @@ def _list_all_tables(client: object) -> list[str]:
 
 
 def main() -> None:
+    settings = Settings()
     dynamodb = boto3.client(
         "dynamodb",
-        region_name=_resolve_region(),
-        endpoint_url=_resolve_endpoint_url(),
+        region_name=settings.aws_region,
+        endpoint_url=settings.aws_endpoint_url,
     )
 
     tables = _list_all_tables(dynamodb)

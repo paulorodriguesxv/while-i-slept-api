@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from uuid import uuid4
 
 import pytest
@@ -29,18 +28,15 @@ pytestmark = pytest.mark.integration
 
 
 def _integration_settings() -> Settings:
-    endpoint = (
-        os.getenv("APP_DYNAMODB_ENDPOINT_URL")
-        or os.getenv("DYNAMODB_ENDPOINT_URL")
-        or os.getenv("AWS_ENDPOINT_URL")
-    )
+    base_settings = Settings()
+    endpoint = base_settings.aws_endpoint_url
     if not endpoint:
         pytest.skip("DynamoDB endpoint env var not set for integration tests.")
     suffix = uuid4().hex[:8]
     return Settings(
         jwt_secret="integration-secret-0123456789abcdef",
-        aws_region=os.getenv("APP_AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1",
-        dynamodb_endpoint_url=endpoint,
+        aws_region=base_settings.aws_region,
+        aws_endpoint_url=endpoint,
         users_table=f"users_it_{suffix}",
         devices_table=f"devices_it_{suffix}",
         briefings_table=f"briefings_it_{suffix}",
@@ -49,9 +45,6 @@ def _integration_settings() -> Settings:
 
 @pytest.fixture(scope="module")
 def dynamo_factory() -> DynamoTableFactory:
-    endpoint = os.getenv("APP_DYNAMODB_ENDPOINT_URL") or os.getenv("DYNAMODB_ENDPOINT_URL") or os.getenv("AWS_ENDPOINT_URL")
-    if not endpoint:
-        pytest.skip("DynamoDB endpoint env var not set for integration tests.")
     settings = _integration_settings()
     factory = DynamoTableFactory(settings)
     _ensure_test_tables(factory, settings)

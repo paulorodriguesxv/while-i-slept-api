@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import TypedDict
 
+from while_i_slept_api.core.logging import StructuredLogger
 from while_i_slept_api.article_pipeline.dto import SummaryJob
 from while_i_slept_api.article_pipeline.models import RawArticle, SummaryOutput
-
 
 class _LanguageProfile(TypedDict):
     why_label: str
@@ -197,7 +197,16 @@ _LANGUAGE_PROFILES: dict[str, _LanguageProfile] = {
 class SmartBrevitySummarizer:
     """Deterministic summarizer using Smart Brevity formatting rules."""
 
+    def __init__(self, logger: StructuredLogger | None = None) -> None:
+        self._logger = logger or StructuredLogger("while_i_slept.summary.smart_brevity")
+
     def summarize(self, article: RawArticle, job: SummaryJob) -> SummaryOutput:
+        self._logger.info(
+            "summarizer.summarize_start",
+            content_hash=getattr(job, "content_hash", None),
+            summary_version=getattr(job, "summary_version", None),
+        )
+
         language = _resolve_language(getattr(job, "language", "en"))
         profile = _LANGUAGE_PROFILES[language]
         try:
