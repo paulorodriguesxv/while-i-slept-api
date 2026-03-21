@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from while_i_slept_api.article_pipeline.article_job_dto import ArticleJob
 from while_i_slept_api.article_pipeline.dto import SummaryJob
 from while_i_slept_api.article_pipeline.models import RawArticle, SummaryOutput, SummaryState
 
@@ -59,9 +60,15 @@ class SummaryJobQueue(Protocol):
         """Enqueue summary job."""
 
 
+class ArticleJobQueue(Protocol):
+    """Queue port for intermediate article jobs."""
+
+    def enqueue(self, job: ArticleJob) -> None:
+        """Enqueue intermediate article job."""
+
+
 class Summarizer(Protocol):
     """Summarizer abstraction."""
 
     def summarize(self, article: RawArticle, job: SummaryJob) -> SummaryOutput:
         """Generate summary output."""
-

@@ -6,7 +6,8 @@ import os
 
 from while_i_slept_api.article_pipeline.infrastructure.aws_clients import AwsClientFactory
 from while_i_slept_api.article_pipeline.infrastructure.dynamodb_single_table import DynamoArticleSummaryRepository
-from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsSummaryJobQueue
+from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsArticleJobQueue, SqsSummaryJobQueue
+from while_i_slept_api.article_pipeline.ports import ArticleJobQueue
 from while_i_slept_api.article_pipeline.summarizers import NotImplementedSummarizer, SmartBrevitySummarizer
 from while_i_slept_api.article_pipeline.use_cases import IngestArticleUseCase, ProcessSummaryJobUseCase
 from while_i_slept_api.core.config import Settings, get_settings
@@ -23,6 +24,32 @@ def _resolve_queue_name() -> str:
 
 def _resolve_queue_url() -> str | None:
     return os.getenv("SUMMARY_QUEUE_URL")
+
+
+def _resolve_article_jobs_queue_name() -> str:
+    return os.getenv("ARTICLE_JOBS_QUEUE_NAME") or "article-jobs"
+
+
+def _resolve_article_jobs_queue_url() -> str | None:
+    return os.getenv("ARTICLE_JOBS_QUEUE_URL")
+
+
+def build_article_job_queue() -> ArticleJobQueue:
+    """Build article-jobs queue adapter used by ingestion lambda."""
+
+    factory = AwsClientFactory()
+    queue_name = _resolve_article_jobs_queue_name()
+    queue_url = _resolve_article_jobs_queue_url()
+    if queue_url:
+        return SqsArticleJobQueue(
+            factory.sqs_client(),
+            queue_name=queue_name,
+            queue_url=queue_url,
+        )
+    return SqsArticleJobQueue(
+        factory.sqs_client(),
+        queue_name=queue_name,
+    )
 
 
 def build_ingestion_use_case() -> IngestArticleUseCase:

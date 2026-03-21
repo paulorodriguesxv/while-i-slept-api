@@ -155,3 +155,23 @@ resource "aws_sqs_queue" "summary_jobs" {
 
   tags = local.common_tags
 }
+
+resource "aws_sqs_queue" "article_jobs_dlq" {
+  name                      = "${local.resource_prefix}-article-jobs-dlq"
+  message_retention_seconds = var.summary_queue_message_retention_seconds
+
+  tags = local.common_tags
+}
+
+resource "aws_sqs_queue" "article_jobs" {
+  name                       = "${local.resource_prefix}-article-jobs"
+  visibility_timeout_seconds = var.summary_queue_visibility_timeout_seconds
+  message_retention_seconds  = var.summary_queue_message_retention_seconds
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.article_jobs_dlq.arn
+    maxReceiveCount     = 5
+  })
+
+  tags = local.common_tags
+}

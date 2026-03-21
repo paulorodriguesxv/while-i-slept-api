@@ -21,20 +21,15 @@ resource "aws_lambda_function" "ingestion" {
 
   environment {
     variables = {
-      APP_ENV              = var.environment
-      AWS_REGION           = var.aws_region
-      ARTICLES_TABLE_NAME  = aws_dynamodb_table.articles.name
-      USERS_TABLE_NAME     = aws_dynamodb_table.users.name
-      DEVICES_TABLE_NAME   = aws_dynamodb_table.devices.name
-      BRIEFINGS_TABLE_NAME = aws_dynamodb_table.briefings.name
-      SUMMARY_QUEUE_URL    = aws_sqs_queue.summary_jobs.id
+      APP_ENV                = var.environment
+      AWS_REGION             = var.aws_region
+      ARTICLE_JOBS_QUEUE_URL = aws_sqs_queue.article_jobs.id
     }
   }
 
   depends_on = [
     aws_cloudwatch_log_group.ingestion,
     aws_iam_role_policy_attachment.ingestion_lambda_logs,
-    aws_iam_role_policy_attachment.ingestion_lambda_dynamodb,
     aws_iam_role_policy_attachment.ingestion_lambda_sqs,
   ]
 

@@ -73,6 +73,21 @@ output "summary_dlq_arn" {
   value       = aws_sqs_queue.summary_jobs_dlq.arn
 }
 
+output "article_jobs_queue_name" {
+  description = "Name of the article jobs SQS queue."
+  value       = aws_sqs_queue.article_jobs.name
+}
+
+output "article_jobs_queue_url" {
+  description = "URL of the article jobs SQS queue."
+  value       = aws_sqs_queue.article_jobs.url
+}
+
+output "article_jobs_queue_arn" {
+  description = "ARN of the article jobs SQS queue."
+  value       = aws_sqs_queue.article_jobs.arn
+}
+
 output "api_lambda_function_name" {
   description = "API Lambda function name."
   value       = aws_lambda_function.api.function_name
@@ -101,6 +116,16 @@ output "worker_lambda_function_name" {
 output "worker_lambda_role_arn" {
   description = "Worker Lambda IAM role ARN."
   value       = aws_iam_role.worker_lambda_role.arn
+}
+
+output "article_processor_lambda_function_name" {
+  description = "Article processor Lambda function name."
+  value       = aws_lambda_function.article_processor.function_name
+}
+
+output "article_processor_lambda_role_arn" {
+  description = "Article processor Lambda IAM role ARN."
+  value       = aws_iam_role.article_processor_lambda_role.arn
 }
 
 output "python_dependencies_layer_arn" {

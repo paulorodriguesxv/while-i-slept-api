@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 from while_i_slept_api.article_pipeline.dto import SummaryJob
+import while_i_slept_api.article_pipeline.ingestion_handler as ingestion_handler_module
 from while_i_slept_api.article_pipeline.models import RawArticle, SummaryOutput, SummaryState
 from while_i_slept_api.article_pipeline.use_cases import IngestArticleUseCase
+from while_i_slept_api.content.models import FeedDefinition, NormalizedFeedEntry
 from while_i_slept_api.core.logging import StructuredLogger
 
 
@@ -111,3 +115,75 @@ def test_ingestion_duplicate_does_not_enqueue() -> None:
     assert repository.pending_created == 0
     assert queue.jobs == []
 
+
+@dataclass
+class _FakeArticleJobQueue:
+    jobs: list[Any] = field(default_factory=list)
+
+    def enqueue(self, job: Any) -> None:
+        self.jobs.append(job)
+
+
+def test_ingestion_lambda_enqueues_lightweight_article_jobs(monkeypatch) -> None:
+    queue = _FakeArticleJobQueue()
+    feeds = [FeedDefinition(url="https://example.com/feed", source_name="Example Source")]
+    entries = [
+        NormalizedFeedEntry(
+            language="en",
+            topic="world",
+            feed_url="https://example.com/feed",
+            entry_id="entry-1",
+            title="Title 1",
+            link="https://example.com/story-1",
+            summary="Summary 1",
+            published_at=datetime(2026, 2, 27, 10, 0, tzinfo=UTC),
+        ),
+        NormalizedFeedEntry(
+            language="en",
+            topic="world",
+            feed_url="https://example.com/feed",
+            entry_id="entry-2",
+            title="Title 2",
+            link=None,
+            summary="Summary 2",
+            published_at=datetime(2026, 2, 27, 10, 5, tzinfo=UTC),
+        ),
+    ]
+
+    class _FakeRegistry:
+        def resolve(self, *, language: str, topic: str) -> list[FeedDefinition]:
+            assert language == "en"
+            assert topic == "world"
+            return feeds
+
+    class _FakeFetcher:
+        def fetch_feed(self, *, language: str, topic: str, feed: FeedDefinition) -> list[NormalizedFeedEntry]:
+            assert language == "en"
+            assert topic == "world"
+            assert feed.url == "https://example.com/feed"
+            return entries
+
+    monkeypatch.setattr(ingestion_handler_module, "FeedRegistry", _FakeRegistry)
+    monkeypatch.setattr(ingestion_handler_module, "RSSFetcher", _FakeFetcher)
+    monkeypatch.setattr(ingestion_handler_module, "build_article_job_queue", lambda: queue)
+
+    result = ingestion_handler_module.lambda_handler({"language": "en", "topic": "world"}, None)
+
+    assert result == {"language": "en", "topic": "world", "total": 2, "enqueued": 2}
+    assert len(queue.jobs) == 2
+    assert queue.jobs[0].article_url == "https://example.com/story-1"
+    assert queue.jobs[1].article_url == "https://example.com/feed"
+    assert queue.jobs[0].source == "Example Source"
+
+
+def test_ingestion_lambda_returns_zero_when_no_feeds(monkeypatch) -> None:
+    class _FakeRegistry:
+        def resolve(self, *, language: str, topic: str) -> list[FeedDefinition]:
+            _ = (language, topic)
+            return []
+
+    monkeypatch.setattr(ingestion_handler_module, "FeedRegistry", _FakeRegistry)
+
+    result = ingestion_handler_module.lambda_handler({"language": "pt", "topic": "science"}, None)
+
+    assert result == {"language": "pt", "topic": "science", "total": 0, "enqueued": 0}

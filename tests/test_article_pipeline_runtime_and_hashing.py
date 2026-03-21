@@ -55,6 +55,27 @@ def test_runtime_build_ingestion_use_case(monkeypatch: pytest.MonkeyPatch) -> No
     assert isinstance(use_case, IngestArticleUseCase)
 
 
+def test_runtime_build_article_job_queue(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _Factory:
+        def sqs_client(self) -> str:
+            return "sqs-client"
+
+    class _Queue:
+        def __init__(self, client: Any, *, queue_name: str | None = None, queue_url: str | None = None) -> None:
+            assert client == "sqs-client"
+            assert queue_name == "article-jobs-test"
+            assert queue_url == "https://example.com/article-jobs"
+
+    monkeypatch.setattr(runtime, "AwsClientFactory", _Factory)
+    monkeypatch.setattr(runtime, "SqsArticleJobQueue", _Queue)
+    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_NAME", "article-jobs-test")
+    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_URL", "https://example.com/article-jobs")
+
+    queue = runtime.build_article_job_queue()
+
+    assert isinstance(queue, _Queue)
+
+
 def test_runtime_build_process_summary_use_case(monkeypatch: pytest.MonkeyPatch) -> None:
     class _Factory:
         def dynamodb_resource(self) -> str:

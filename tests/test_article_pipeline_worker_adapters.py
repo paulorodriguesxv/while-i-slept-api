@@ -10,7 +10,7 @@ import pytest
 
 from while_i_slept_api.article_pipeline.local_consumer import poll_once
 from while_i_slept_api.article_pipeline.worker_handler import lambda_handler
-from while_i_slept_api.article_pipeline.worker_processing import process_sqs_record
+from while_i_slept_api.article_pipeline.worker_processing import _execute_with_retries, process_sqs_record
 from while_i_slept_api.core.logging import StructuredLogger
 
 
@@ -82,6 +82,86 @@ def test_process_sqs_record_returns_false_when_processing_failed() -> None:
 
     assert should_ack is False
     assert fake_use_case.calls == 1
+
+
+def test_process_sqs_record_acks_invalid_json() -> None:
+    fake_use_case = _FakeUseCase(status="DONE")
+    should_ack = process_sqs_record(
+        record_body="{invalid-json}",
+        message_id="m-json",
+        receive_count=1,
+        use_case=fake_use_case,  # type: ignore[arg-type]
+        logger=StructuredLogger("tests.summary.adapter.invalid_json"),
+        max_attempts=1,
+        base_backoff_seconds=0,
+        sleep_fn=lambda _: None,
+    )
+
+    assert should_ack is True
+    assert fake_use_case.calls == 0
+
+
+def test_process_sqs_record_acks_invalid_payload_type() -> None:
+    fake_use_case = _FakeUseCase(status="DONE")
+    should_ack = process_sqs_record(
+        record_body=json.dumps(["not-a-dict"]),
+        message_id="m-type",
+        receive_count=1,
+        use_case=fake_use_case,  # type: ignore[arg-type]
+        logger=StructuredLogger("tests.summary.adapter.invalid_type"),
+        max_attempts=1,
+        base_backoff_seconds=0,
+        sleep_fn=lambda _: None,
+    )
+
+    assert should_ack is True
+    assert fake_use_case.calls == 0
+
+
+def test_process_sqs_record_acks_invalid_payload_schema() -> None:
+    fake_use_case = _FakeUseCase(status="DONE")
+    should_ack = process_sqs_record(
+        record_body=json.dumps({"version": 1}),
+        message_id="m-schema",
+        receive_count=1,
+        use_case=fake_use_case,  # type: ignore[arg-type]
+        logger=StructuredLogger("tests.summary.adapter.invalid_schema"),
+        max_attempts=1,
+        base_backoff_seconds=0,
+        sleep_fn=lambda _: None,
+    )
+
+    assert should_ack is True
+    assert fake_use_case.calls == 0
+
+
+def test_process_sqs_record_retries_and_returns_false_on_exception() -> None:
+    fake_use_case = _FakeUseCase(raise_error=True)
+    sleep_calls: list[float] = []
+    should_ack = process_sqs_record(
+        record_body=_valid_body(),
+        message_id="m-retry",
+        receive_count=2,
+        use_case=fake_use_case,  # type: ignore[arg-type]
+        logger=StructuredLogger("tests.summary.adapter.retry"),
+        max_attempts=2,
+        base_backoff_seconds=0.1,
+        sleep_fn=lambda seconds: sleep_calls.append(seconds),
+    )
+
+    assert should_ack is False
+    assert fake_use_case.calls == 2
+    assert sleep_calls == [0.1]
+
+
+def test_execute_with_retries_rejects_invalid_max_attempts() -> None:
+    with pytest.raises(ValueError):
+        _execute_with_retries(
+            lambda: None,
+            max_attempts=0,
+            base_backoff_seconds=0,
+            sleep_fn=lambda _: None,
+        )
 
 
 def test_lambda_handler_returns_batch_failure_for_failed_job(monkeypatch: pytest.MonkeyPatch) -> None:

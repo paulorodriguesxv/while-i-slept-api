@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LAMBDA_NAME="${1:?Usage: build_lambda.sh <api|worker|ingestion>}"
+LAMBDA_NAME="${1:?Usage: build_lambda.sh <api|worker|ingestion|article_processor>}"
 
 ROOT_DIR="/app"
 BUILD_DIR="${ROOT_DIR}/build/${LAMBDA_NAME}"

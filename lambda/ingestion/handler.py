@@ -2,90 +2,12 @@
 
 from __future__ import annotations
 
-import logging
-import os
 from typing import Any
 
-from while_i_slept_api.article_pipeline.article_fetcher import enrich_article_content
-from while_i_slept_api.article_pipeline.hashing import compute_content_hash
-from while_i_slept_api.article_pipeline.models import RawArticle
-from while_i_slept_api.article_pipeline.runtime import build_ingestion_use_case
-from while_i_slept_api.content.registry import FeedRegistry
-from while_i_slept_api.content.rss import RSSFetcher
-from while_i_slept_api.services.utils import iso_now
-from while_i_slept_api.core.logging import StructuredLogger
-
-_ARTICLE_LOGGER = logging.getLogger(__name__)
-_LOGGER = StructuredLogger("while_i_slept.lambda.ingestion")
+from while_i_slept_api.article_pipeline.ingestion_handler import lambda_handler
 
 
-def handler(event: dict[str, Any] | None, _context: Any) -> dict[str, Any]:
-    """Fetch feeds, ingest articles, and enqueue summary jobs."""
+def handler(event: dict[str, Any] | None, context: Any) -> dict[str, Any]:
+    """Process scheduled ingestion event using article pipeline adapter."""
 
-    payload = event if isinstance(event, dict) else {}
-    language = str(payload.get("language") or os.getenv("FEED_LANGUAGE", "pt"))
-    topic = str(payload.get("topic") or os.getenv("FEED_TOPIC", "world"))
-
-    registry = FeedRegistry()
-    feeds = registry.resolve(language=language, topic=topic)
-    fetcher = RSSFetcher()
-    ingestion_use_case = build_ingestion_use_case()
-
-    if not feeds:
-        _LOGGER.info("ingestion_lambda.no_feeds", language=language, topic=topic)
-        return {"language": language, "topic": topic, "total": 0, "inserted": 0, "duplicates": 0}
-
-    total = 0
-    inserted = 0
-    duplicates = 0
-
-    for feed in feeds:
-        entries = fetcher.fetch_feed(language=language, topic=topic, feed=feed)
-        total += len(entries)
-        for entry in entries:
-            source_url = entry.link or feed.url
-            enriched = enrich_article_content(
-                url=source_url,
-                fallback_text=entry.summary or "",
-                logger=_ARTICLE_LOGGER,
-            )
-            content = enriched.content
-            content_hash = compute_content_hash(title=entry.title, content=content)
-            article = RawArticle(
-                content_hash=content_hash,
-                article_id=entry.entry_id,
-                language=entry.language,
-                topic=entry.topic,
-                source=feed.source_name or "Unknown Source",
-                source_url=source_url,
-                title=entry.title,
-                content=content,
-                image_url=enriched.image_url,
-                description=enriched.description,
-                author=enriched.author,
-                article_published_time=enriched.article_published_time,
-                reading_time_minutes=enriched.reading_time_minutes,
-                published_at=entry.published_at.isoformat(),
-                ingested_at=iso_now(),
-            )
-            result = ingestion_use_case.ingest(article)
-            if result.status == "CREATED":
-                inserted += 1
-            else:
-                duplicates += 1
-
-    _LOGGER.info(
-        "ingestion_lambda.completed",
-        language=language,
-        topic=topic,
-        total=total,
-        inserted=inserted,
-        duplicates=duplicates,
-    )
-    return {
-        "language": language,
-        "topic": topic,
-        "total": total,
-        "inserted": inserted,
-        "duplicates": duplicates,
-    }
+    return lambda_handler(event, context)

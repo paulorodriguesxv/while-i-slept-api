@@ -69,6 +69,12 @@ variable "lambda_worker_package_path" {
   default     = "../build/worker_lambda.zip"
 }
 
+variable "lambda_article_processor_package_path" {
+  description = "Path to the article processor Lambda deployment package zip."
+  type        = string
+  default     = "../build/article_processor_lambda.zip"
+}
+
 variable "lambda_python_dependencies_layer_path" {
   description = "Path to the Python dependencies Lambda layer zip."
   type        = string

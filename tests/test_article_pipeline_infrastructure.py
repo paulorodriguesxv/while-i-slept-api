@@ -12,11 +12,12 @@ from typing import Any
 import pytest
 
 from while_i_slept_api.article_pipeline.infrastructure import aws_clients
+from while_i_slept_api.article_pipeline.article_job_dto import ArticleJob
 from while_i_slept_api.article_pipeline.infrastructure.dynamodb_single_table import (
     DynamoArticleSummaryRepository,
     _normalize_number,
 )
-from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsSummaryJobQueue
+from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsArticleJobQueue, SqsSummaryJobQueue
 from while_i_slept_api.article_pipeline.models import RawArticle
 from while_i_slept_api.article_pipeline.dto import SummaryJob
 
@@ -144,6 +145,23 @@ def _sample_job() -> SummaryJob:
     )
 
 
+def _sample_article_job() -> ArticleJob:
+    return ArticleJob.from_payload(
+        {
+            "version": 1,
+            "entry_id": "entry_1",
+            "language": "en",
+            "topic": "world",
+            "source": "Example",
+            "source_feed_url": "https://example.com/feed",
+            "article_url": "https://example.com/story",
+            "title": "Story",
+            "summary": "Short summary",
+            "published_at": "2026-02-27T10:00:00Z",
+        }
+    )
+
+
 def test_normalize_number_handles_nested_decimals() -> None:
     value = {"a": Decimal("1"), "b": [Decimal("2.5"), {"c": Decimal("3")}]}
     assert _normalize_number(value) == {"a": 1, "b": [2.5, {"c": 3}]}
@@ -250,6 +268,27 @@ def test_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("SQS_QUEUE_NAME", "summary-jobs")
     queue = SqsSummaryJobQueue(_Client())
     job = _sample_job()
+    queue.enqueue(job)
+    queue.enqueue(job)
+
+    assert len([call for call in calls if call["fn"] == "get_queue_url"]) == 1
+    assert len([call for call in calls if call["fn"] == "send_message"]) == 2
+
+
+def test_article_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class _Client:
+        def get_queue_url(self, QueueName: str) -> dict[str, str]:  # noqa: N803
+            calls.append({"fn": "get_queue_url", "QueueName": QueueName})
+            return {"QueueUrl": "https://example/article-jobs"}
+
+        def send_message(self, **kwargs: Any) -> None:
+            calls.append({"fn": "send_message", **kwargs})
+
+    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_NAME", "article-jobs")
+    queue = SqsArticleJobQueue(_Client())
+    job = _sample_article_job()
     queue.enqueue(job)
     queue.enqueue(job)
 

@@ -53,7 +53,8 @@ With defaults, resources are named like:
 
 - DynamoDB tables: `articles`, `users`, `devices`, `briefings`
 - SQS queue + DLQ for summary jobs
-- API Lambda, ingestion Lambda, worker Lambda
+- SQS queue + DLQ for article jobs
+- API Lambda, ingestion Lambda, article processor Lambda, worker Lambda
 - EventBridge scheduled ingestion rule + target
 - API Gateway HTTP API
 - IAM roles/policies for each Lambda
@@ -62,7 +63,13 @@ With defaults, resources are named like:
 
 ## Lambda Environment Variables
 
-Each Lambda receives:
+Ingestion Lambda receives:
+
+- `ARTICLE_JOBS_QUEUE_URL`
+- `APP_ENV`
+- `AWS_REGION`
+
+Article processor and worker Lambdas receive:
 
 - `ARTICLES_TABLE_NAME`
 - `BRIEFINGS_TABLE_NAME`
