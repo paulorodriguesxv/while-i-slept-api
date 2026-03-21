@@ -63,6 +63,16 @@ With defaults, resources are named like:
 
 ## Lambda Environment Variables
 
+API Lambda receives:
+
+- `APP_ENV`
+- `APP_AWS_REGION`
+- `APP_ARTICLES_TABLE`
+- `APP_USERS_TABLE`
+- `APP_DEVICES_TABLE`
+- `APP_BRIEFINGS_TABLE`
+- `APP_SUMMARY_JOBS_QUEUE_URL`
+
 Ingestion Lambda receives:
 
 - `ARTICLE_JOBS_QUEUE_URL`

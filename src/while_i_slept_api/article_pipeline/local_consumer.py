@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
-import os
 import signal
 import time
 from typing import Any
@@ -174,13 +173,9 @@ def _resolve_queue_url(settings: Settings, sqs_client: Any) -> str:
     if settings.summary_jobs_queue_url:
         return settings.summary_jobs_queue_url
 
-    summary_queue_url = os.getenv("SUMMARY_QUEUE_URL")
-    if summary_queue_url:
-        return summary_queue_url
-
-    queue_name = os.getenv("SQS_QUEUE_NAME")
+    queue_name = settings.summary_jobs_queue_name
     if not queue_name:
-        raise ValueError("Set APP_SUMMARY_JOBS_QUEUE_URL, SUMMARY_QUEUE_URL, or SQS_QUEUE_NAME.")
+        raise ValueError("Set APP_SUMMARY_JOBS_QUEUE_URL or APP_SUMMARY_JOBS_QUEUE_NAME.")
 
     response = sqs_client.get_queue_url(QueueName=queue_name)
     return str(response["QueueUrl"])

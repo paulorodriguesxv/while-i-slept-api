@@ -91,7 +91,7 @@ shell: ##@shell Open a shell in the API container
 
 .PHONY: create-queues
 create-queues: ##@create-queues Create SQS queues (summary + article jobs)
-	docker compose run --rm api sh -lc "python scripts/create_queues.py && SQS_QUEUE_NAME=article-jobs python scripts/create_queues.py"
+	docker compose run --rm api sh -lc "python scripts/create_queues.py && APP_SUMMARY_JOBS_QUEUE_NAME=article-jobs python scripts/create_queues.py"
 
 .PHONY: create-table
 create-table: ##@create-table Create DynamoDB table

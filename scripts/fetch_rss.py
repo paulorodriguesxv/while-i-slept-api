@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from while_i_slept_api.article_pipeline.article_fetcher import enrich_article_content
 from while_i_slept_api.article_pipeline.hashing import compute_content_hash
@@ -11,6 +10,7 @@ from while_i_slept_api.article_pipeline.models import RawArticle
 from while_i_slept_api.article_pipeline.runtime import build_ingestion_use_case
 from while_i_slept_api.content.registry import FeedRegistry
 from while_i_slept_api.content.rss import RSSFetcher
+from while_i_slept_api.core.config import Settings
 from while_i_slept_api.services.utils import iso_now
 from while_i_slept_api.core.logging import StructuredLogger
 
@@ -19,13 +19,14 @@ _LOGGER = StructuredLogger("while_i_slept.fetch_rss")
 
 
 def main() -> None:
-    language = os.getenv("FEED_LANGUAGE", "pt")
-    topic = os.getenv("FEED_TOPIC", "world")
+    settings = Settings()
+    language = settings.feed_language
+    topic = settings.feed_topic
 
     registry = FeedRegistry()
     feeds = registry.resolve(language=language, topic=topic)
     fetcher = RSSFetcher()
-    ingestion_use_case = build_ingestion_use_case()
+    ingestion_use_case = build_ingestion_use_case(settings)
 
     if not feeds:
         _LOGGER.info(f"No feeds configured for language={language}, topic={topic}")

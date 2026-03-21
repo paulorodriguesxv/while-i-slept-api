@@ -39,15 +39,14 @@ class _FakeSqs:
         self.deleted.append(kwargs)
 
 
-def test_article_job_consumer_resolve_queue_url(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_article_job_consumer_resolve_queue_url() -> None:
     sqs = _FakeSqs()
 
-    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_URL", "https://from/env/url")
-    assert _resolve_queue_url(sqs) == "https://from/env/url"
-    monkeypatch.delenv("ARTICLE_JOBS_QUEUE_URL")
+    settings_url = Settings(jwt_secret="x" * 32, article_jobs_queue_url="https://from/env/url")
+    assert _resolve_queue_url(settings_url, sqs) == "https://from/env/url"
 
-    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_NAME", "article-jobs-custom")
-    assert _resolve_queue_url(sqs) == "https://example.com/article-jobs"
+    settings_name = Settings(jwt_secret="x" * 32, article_jobs_queue_name="article-jobs-custom")
+    assert _resolve_queue_url(settings_name, sqs) == "https://example.com/article-jobs"
     assert sqs.queue_url_calls[-1] == {"QueueName": "article-jobs-custom"}
 
 

@@ -16,6 +16,13 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "aws_endpoint_url" {
+  description = "Optional AWS endpoint override (for local emulators). Leave null for real AWS."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
 variable "aws_profile" {
   description = "AWS CLI profile to use for authentication."
   type        = string
@@ -42,7 +49,7 @@ variable "dynamodb_billing_mode" {
 variable "summary_queue_visibility_timeout_seconds" {
   description = "Visibility timeout for the summary jobs queue in seconds."
   type        = number
-  default     = 60
+  default     = 120         
 }
 
 variable "summary_queue_message_retention_seconds" {
@@ -84,5 +91,5 @@ variable "lambda_python_dependencies_layer_path" {
 variable "ingestion_schedule_expression" {
   description = "EventBridge schedule expression for ingestion."
   type        = string
-  default     = "rate(5 minutes)"
+  default     = "rate(30 minutes)"
 }

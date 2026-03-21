@@ -20,11 +20,19 @@ resource "aws_lambda_function" "ingestion" {
   source_code_hash = fileexists(var.lambda_ingestion_package_path) ? filebase64sha256(var.lambda_ingestion_package_path) : null
 
   environment {
-    variables = {
-      APP_ENV                = var.environment
-      AWS_REGION             = var.aws_region
-      ARTICLE_JOBS_QUEUE_URL = aws_sqs_queue.article_jobs.id
-    }
+    variables = merge(
+      {
+        APP_ENV                     = var.environment
+        APP_AWS_REGION              = var.aws_region
+        APP_FEED_LANGUAGE           = "pt"
+        APP_FEED_TOPIC              = "world"
+        APP_ARTICLE_JOBS_QUEUE_NAME = aws_sqs_queue.article_jobs.name
+        APP_ARTICLE_JOBS_QUEUE_URL  = aws_sqs_queue.article_jobs.id
+      },
+      var.aws_endpoint_url == null ? {} : {
+        APP_AWS_ENDPOINT_URL = var.aws_endpoint_url
+      },
+    )
   }
 
   depends_on = [

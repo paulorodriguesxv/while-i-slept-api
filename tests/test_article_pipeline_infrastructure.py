@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-import os
 from types import SimpleNamespace
 from typing import Any
 
@@ -246,7 +245,7 @@ def test_dynamo_repo_persists_optional_raw_metadata_fields() -> None:
 def test_dynamo_repo_from_resource_uses_env_default(monkeypatch: pytest.MonkeyPatch) -> None:
     table = _FakeTable()
     resource = _FakeResource(table)
-    monkeypatch.setenv("DYNAMO_TABLE_NAME", "articles_env")
+    monkeypatch.setenv("APP_ARTICLES_TABLE", "articles_env")
 
     repo = DynamoArticleSummaryRepository.from_resource(resource)
 
@@ -265,7 +264,8 @@ def test_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPatch) -> 
         def send_message(self, **kwargs: Any) -> None:
             calls.append({"fn": "send_message", **kwargs})
 
-    monkeypatch.setenv("SQS_QUEUE_NAME", "summary-jobs")
+    monkeypatch.setenv("APP_SUMMARY_JOBS_QUEUE_NAME", "summary-jobs")
+    monkeypatch.delenv("APP_SUMMARY_JOBS_QUEUE_URL", raising=False)
     queue = SqsSummaryJobQueue(_Client())
     job = _sample_job()
     queue.enqueue(job)
@@ -286,7 +286,8 @@ def test_article_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPa
         def send_message(self, **kwargs: Any) -> None:
             calls.append({"fn": "send_message", **kwargs})
 
-    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_NAME", "article-jobs")
+    monkeypatch.setenv("APP_ARTICLE_JOBS_QUEUE_NAME", "article-jobs")
+    monkeypatch.delenv("APP_ARTICLE_JOBS_QUEUE_URL", raising=False)
     queue = SqsArticleJobQueue(_Client())
     job = _sample_article_job()
     queue.enqueue(job)
@@ -299,8 +300,8 @@ def test_article_sqs_queue_enqueues_with_cached_url(monkeypatch: pytest.MonkeyPa
 def test_aws_client_factory_uses_resolved_env(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = _FakeBoto3(resource_calls=[], client_calls=[])
     monkeypatch.setattr(aws_clients, "boto3", fake)
-    monkeypatch.setenv("AWS_REGION", "us-east-2")
-    monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localstack:4566")
+    monkeypatch.setenv("APP_AWS_REGION", "us-east-2")
+    monkeypatch.setenv("APP_AWS_ENDPOINT_URL", "http://localstack:4566")
 
     factory = aws_clients.AwsClientFactory()
     resource = factory.dynamodb_resource()

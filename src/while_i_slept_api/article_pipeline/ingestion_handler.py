@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from while_i_slept_api.article_pipeline.article_job_dto import ArticleJob
 from while_i_slept_api.article_pipeline.runtime import build_article_job_queue
 from while_i_slept_api.content.registry import FeedRegistry
 from while_i_slept_api.content.rss import RSSFetcher
+from while_i_slept_api.core.config import Settings
 from while_i_slept_api.core.logging import StructuredLogger
 
 _LOGGER = StructuredLogger("while_i_slept.lambda.ingestion")
@@ -17,14 +17,15 @@ _LOGGER = StructuredLogger("while_i_slept.lambda.ingestion")
 def lambda_handler(event: dict[str, Any] | None, _context: Any) -> dict[str, Any]:
     """Fetch feeds and enqueue lightweight article jobs."""
 
+    settings = Settings()
     payload = event if isinstance(event, dict) else {}
-    language = str(payload.get("language") or os.getenv("FEED_LANGUAGE", "pt"))
-    topic = str(payload.get("topic") or os.getenv("FEED_TOPIC", "world"))
+    language = str(payload.get("language") or settings.feed_language)
+    topic = str(payload.get("topic") or settings.feed_topic)
 
     registry = FeedRegistry()
     feeds = registry.resolve(language=language, topic=topic)
     fetcher = RSSFetcher()
-    queue = build_article_job_queue()
+    queue = build_article_job_queue(settings)
 
     if not feeds:
         _LOGGER.info("ingestion_lambda.no_feeds", language=language, topic=topic)

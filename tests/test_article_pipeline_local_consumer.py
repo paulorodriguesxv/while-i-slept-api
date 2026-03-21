@@ -26,23 +26,20 @@ class _FakeSqs:
         return {"QueueUrl": "https://queue/url"}
 
 
-def test_local_consumer_resolve_queue_url(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_local_consumer_resolve_queue_url() -> None:
     sqs = _FakeSqs()
 
     settings_direct = Settings(jwt_secret="x" * 32, summary_jobs_queue_url="https://from/settings")
     assert _resolve_queue_url(settings_direct, sqs) == "https://from/settings"
 
-    settings_env = Settings(jwt_secret="x" * 32, summary_jobs_queue_url=None)
-    monkeypatch.setenv("SUMMARY_QUEUE_URL", "https://from/env")
-    assert _resolve_queue_url(settings_env, sqs) == "https://from/env"
-    monkeypatch.delenv("SUMMARY_QUEUE_URL")
-
-    monkeypatch.setenv("SQS_QUEUE_NAME", "summary-jobs")
-    assert _resolve_queue_url(settings_env, sqs) == "https://queue/url"
-    monkeypatch.delenv("SQS_QUEUE_NAME")
+    settings_by_name = Settings(jwt_secret="x" * 32, summary_jobs_queue_url=None, summary_jobs_queue_name="summary-jobs")
+    assert _resolve_queue_url(settings_by_name, sqs) == "https://queue/url"
 
     with pytest.raises(ValueError):
-        _resolve_queue_url(settings_env, sqs)
+        _resolve_queue_url(
+            Settings(jwt_secret="x" * 32, summary_jobs_queue_url=None, summary_jobs_queue_name=""),
+            sqs,
+        )
 
 
 def test_local_consumer_build_sqs_client(monkeypatch: pytest.MonkeyPatch) -> None:

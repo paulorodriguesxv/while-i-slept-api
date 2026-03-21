@@ -26,6 +26,9 @@ def test_compute_content_hash_normalizes_whitespace() -> None:
 
 def test_runtime_build_ingestion_use_case(monkeypatch: pytest.MonkeyPatch) -> None:
     class _Factory:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            _ = (args, kwargs)
+
         def dynamodb_resource(self) -> str:
             return "dynamo-resource"
 
@@ -47,8 +50,9 @@ def test_runtime_build_ingestion_use_case(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(runtime, "AwsClientFactory", _Factory)
     monkeypatch.setattr(runtime, "DynamoArticleSummaryRepository", _Repo)
     monkeypatch.setattr(runtime, "SqsSummaryJobQueue", _Queue)
-    monkeypatch.setenv("DYNAMO_TABLE_NAME", "articles-test")
-    monkeypatch.setenv("SQS_QUEUE_NAME", "queue-test")
+    monkeypatch.setenv("APP_ARTICLES_TABLE", "articles-test")
+    monkeypatch.setenv("APP_SUMMARY_JOBS_QUEUE_NAME", "queue-test")
+    monkeypatch.delenv("APP_SUMMARY_JOBS_QUEUE_URL", raising=False)
 
     use_case = runtime.build_ingestion_use_case()
 
@@ -57,6 +61,9 @@ def test_runtime_build_ingestion_use_case(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_runtime_build_article_job_queue(monkeypatch: pytest.MonkeyPatch) -> None:
     class _Factory:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            _ = (args, kwargs)
+
         def sqs_client(self) -> str:
             return "sqs-client"
 
@@ -68,8 +75,8 @@ def test_runtime_build_article_job_queue(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(runtime, "AwsClientFactory", _Factory)
     monkeypatch.setattr(runtime, "SqsArticleJobQueue", _Queue)
-    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_NAME", "article-jobs-test")
-    monkeypatch.setenv("ARTICLE_JOBS_QUEUE_URL", "https://example.com/article-jobs")
+    monkeypatch.setenv("APP_ARTICLE_JOBS_QUEUE_NAME", "article-jobs-test")
+    monkeypatch.setenv("APP_ARTICLE_JOBS_QUEUE_URL", "https://example.com/article-jobs")
 
     queue = runtime.build_article_job_queue()
 
@@ -78,6 +85,9 @@ def test_runtime_build_article_job_queue(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_runtime_build_process_summary_use_case(monkeypatch: pytest.MonkeyPatch) -> None:
     class _Factory:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            _ = (args, kwargs)
+
         def dynamodb_resource(self) -> str:
             return "dynamo-resource"
 
@@ -90,7 +100,7 @@ def test_runtime_build_process_summary_use_case(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(runtime, "AwsClientFactory", _Factory)
     monkeypatch.setattr(runtime, "DynamoArticleSummaryRepository", _Repo)
-    monkeypatch.setenv("DYNAMO_TABLE_NAME", "articles-test")
+    monkeypatch.setenv("APP_ARTICLES_TABLE", "articles-test")
 
     use_case = runtime.build_process_summary_use_case()
 

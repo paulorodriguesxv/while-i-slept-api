@@ -165,7 +165,7 @@ def test_ingestion_lambda_enqueues_lightweight_article_jobs(monkeypatch) -> None
 
     monkeypatch.setattr(ingestion_handler_module, "FeedRegistry", _FakeRegistry)
     monkeypatch.setattr(ingestion_handler_module, "RSSFetcher", _FakeFetcher)
-    monkeypatch.setattr(ingestion_handler_module, "build_article_job_queue", lambda: queue)
+    monkeypatch.setattr(ingestion_handler_module, "build_article_job_queue", lambda *_: queue)
 
     result = ingestion_handler_module.lambda_handler({"language": "en", "topic": "world"}, None)
 

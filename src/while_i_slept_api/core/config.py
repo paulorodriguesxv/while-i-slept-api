@@ -28,12 +28,16 @@ class Settings(BaseSettings):
 
     aws_region: str = "us-east-1"
     aws_endpoint_url: str | None = None
-    sqs_endpoint_url: str | None = None
-    dynamodb_endpoint_url: str | None = None
+    feed_language: str = "pt"
+    feed_topic: str = "world"
+    articles_table: str = "articles"
     users_table: str = "users"
     devices_table: str = "devices"
     briefings_table: str = "briefings"
+    summary_jobs_queue_name: str = "summary-jobs"
     summary_jobs_queue_url: str | None = None
+    article_jobs_queue_name: str = "article-jobs"
+    article_jobs_queue_url: str | None = None
     summarizer_impl: str = "smart"
     summary_worker_visibility_timeout_seconds: int = 60
     summary_worker_wait_time_seconds: int = 20

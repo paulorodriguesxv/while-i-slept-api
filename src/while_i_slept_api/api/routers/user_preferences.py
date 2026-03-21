@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -11,6 +10,7 @@ from fastapi import APIRouter, Depends
 from while_i_slept_api.api.errors import ApiError
 from while_i_slept_api.article_pipeline.infrastructure.aws_clients import AwsClientFactory
 from while_i_slept_api.article_pipeline.infrastructure.dynamodb_single_table import DynamoArticleSummaryRepository
+from while_i_slept_api.core.config import get_settings
 from while_i_slept_api.dependencies.container import get_current_user
 from while_i_slept_api.domain.models import UserProfile
 from while_i_slept_api.user_preferences.dto import SleepPreferencesRequest, SleepPreferencesResponse
@@ -24,7 +24,7 @@ def build_sleep_preferences_repository() -> DynamoArticleSummaryRepository:
     """Build repository for sleep preference storage."""
 
     factory = AwsClientFactory()
-    table_name = os.getenv("ARTICLES_TABLE_NAME") or os.getenv("DYNAMO_TABLE_NAME") or "articles"
+    table_name = get_settings().articles_table
     return DynamoArticleSummaryRepository.from_resource(
         factory.dynamodb_resource(),
         table_name=table_name,

@@ -72,7 +72,7 @@ If `APP_ALLOW_INSECURE_OAUTH_TOKENS=true`, non-stub tokens are accepted in dev a
 
 - Set `APP_STORAGE_BACKEND=dynamodb`
 - Configure:
-  - `APP_DYNAMODB_ENDPOINT_URL`
+  - `APP_AWS_ENDPOINT_URL`
   - `APP_USERS_TABLE`
   - `APP_DEVICES_TABLE`
   - `APP_BRIEFINGS_TABLE`

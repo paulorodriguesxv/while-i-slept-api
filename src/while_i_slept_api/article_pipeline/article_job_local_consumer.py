@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 import logging
-import os
 import signal
 import time
 from typing import Any
@@ -56,9 +55,9 @@ def _run_consumer(
     consecutive_empty_polls = 0
     logger = StructuredLogger("while_i_slept.article_job.local_consumer")
     article_logger = logging.getLogger(__name__)
-    use_case = build_ingestion_use_case()
+    use_case = build_ingestion_use_case(cfg)
     sqs_client = _build_sqs_client(cfg)
-    queue_url = _resolve_queue_url(sqs_client)
+    queue_url = _resolve_queue_url(cfg, sqs_client)
 
     def _shutdown_handler(_signum: int, _frame: Any) -> None:
         running["value"] = False
@@ -167,12 +166,11 @@ def _build_sqs_client(settings: Settings) -> Any:
     return boto3.client("sqs", region_name=settings.aws_region)
 
 
-def _resolve_queue_url(sqs_client: Any) -> str:
-    queue_url = os.getenv("ARTICLE_JOBS_QUEUE_URL")
-    if queue_url:
-        return queue_url
+def _resolve_queue_url(settings: Settings, sqs_client: Any) -> str:
+    if settings.article_jobs_queue_url:
+        return settings.article_jobs_queue_url
 
-    queue_name = os.getenv("ARTICLE_JOBS_QUEUE_NAME", "article-jobs")
+    queue_name = settings.article_jobs_queue_name
     response = sqs_client.get_queue_url(QueueName=queue_name)
     return str(response["QueueUrl"])
 
