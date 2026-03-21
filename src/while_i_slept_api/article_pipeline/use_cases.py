@@ -10,7 +10,7 @@ from while_i_slept_api.article_pipeline.dto import SummaryJob
 from while_i_slept_api.article_pipeline.models import RawArticle
 from while_i_slept_api.article_pipeline.ports import ArticleSummaryRepository, Summarizer, SummaryJobQueue
 from while_i_slept_api.services.utils import iso_now
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.logging import StructuredLogger
 
 
 @dataclass(slots=True, frozen=True)

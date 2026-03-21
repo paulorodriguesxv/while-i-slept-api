@@ -12,10 +12,10 @@ from while_i_slept_api.article_pipeline.ports import SummaryJobQueue
 class SqsSummaryJobQueue(SummaryJobQueue):
     """Send summary jobs to SQS."""
 
-    def __init__(self, client: Any, *, queue_name: str | None = None) -> None:
+    def __init__(self, client: Any, *, queue_name: str | None = None, queue_url: str | None = None) -> None:
         self._client = client
         self._queue_name = queue_name or os.getenv("SQS_QUEUE_NAME", "summary-jobs")
-        self._queue_url: str | None = None
+        self._queue_url: str | None = queue_url or os.getenv("SUMMARY_QUEUE_URL")
 
     def enqueue(self, job: SummaryJob) -> None:
         queue_url = self._get_queue_url()
@@ -29,4 +29,3 @@ class SqsSummaryJobQueue(SummaryJobQueue):
             response = self._client.get_queue_url(QueueName=self._queue_name)
             self._queue_url = response["QueueUrl"]
         return self._queue_url
-

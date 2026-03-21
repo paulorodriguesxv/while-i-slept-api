@@ -1,4 +1,4 @@
-"""Unit tests for summary worker adapters and retries."""
+"""Unit tests for article-pipeline worker adapters."""
 
 from __future__ import annotations
 
@@ -8,39 +8,49 @@ from typing import Any
 
 import pytest
 
-from while_i_slept_api.summarizer_worker.errors import SummaryJobRetryableError
-from while_i_slept_api.summarizer_worker.lambda_handler import lambda_handler
-from while_i_slept_api.summarizer_worker.local_consumer import poll_once
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
-from while_i_slept_api.summarizer_worker.message_processing import process_sqs_record
-from while_i_slept_api.summarizer_worker.retry import RetryPolicy, execute_with_retries
+from while_i_slept_api.article_pipeline.local_consumer import poll_once
+from while_i_slept_api.article_pipeline.worker_handler import lambda_handler
+from while_i_slept_api.article_pipeline.worker_processing import process_sqs_record
+from while_i_slept_api.core.logging import StructuredLogger
 
 
 def _valid_body() -> str:
     return json.dumps(
         {
-            "version": "1.0",
+            "version": 1,
             "job_id": "job_1",
-            "user_id": "usr_1",
-            "date": "2026-02-27",
-            "lang": "en",
-            "window_start": "2026-02-26T23:00:00-03:00",
-            "window_end": "2026-02-27T07:00:00-03:00",
-            "entries": [],
+            "article_id": "article_1",
+            "content_hash": "a" * 64,
+            "language": "en",
+            "topic": "world",
+            "summary_version": 1,
+            "priority": "normal",
+            "reprocess": False,
+            "model_override": None,
+            "created_at": "2026-02-27T10:00:00Z",
         }
     )
 
 
 @dataclass
-class _FakeUseCase:
-    calls: int = 0
-    should_fail_retryable: bool = False
+class _FakeResult:
+    status: str
+    content_hash: str = "a" * 64
+    summary_version: int = 1
+    retry_count: int = 0
 
-    def process_summary_job(self, _job: Any) -> Any:
+
+@dataclass
+class _FakeUseCase:
+    status: str = "DONE"
+    raise_error: bool = False
+    calls: int = 0
+
+    def process_summary_job(self, _job: Any) -> _FakeResult:
         self.calls += 1
-        if self.should_fail_retryable:
-            raise SummaryJobRetryableError("temporary")
-        return object()
+        if self.raise_error:
+            raise RuntimeError("temporary")
+        return _FakeResult(status=self.status)
 
 
 class _FakeSQSClient:
@@ -57,41 +67,27 @@ class _FakeSQSClient:
         self.deleted.append(kwargs)
 
 
-def test_execute_with_retries_retries_and_succeeds() -> None:
-    attempts = {"count": 0}
-
-    def _fn() -> str:
-        attempts["count"] += 1
-        if attempts["count"] < 3:
-            raise SummaryJobRetryableError("retry")
-        return "ok"
-
-    result = execute_with_retries(_fn, policy=RetryPolicy(max_attempts=3, base_backoff_seconds=0), sleep_fn=lambda _: None)
-
-    assert result == "ok"
-    assert attempts["count"] == 3
-
-
-def test_process_sqs_record_returns_false_for_retryable_failure() -> None:
-    fake_use_case = _FakeUseCase(should_fail_retryable=True)
+def test_process_sqs_record_returns_false_when_processing_failed() -> None:
+    fake_use_case = _FakeUseCase(status="FAILED")
     should_ack = process_sqs_record(
         record_body=_valid_body(),
         message_id="m1",
         receive_count=1,
         use_case=fake_use_case,  # type: ignore[arg-type]
         logger=StructuredLogger("tests.summary.adapter"),
-        retry_policy=RetryPolicy(max_attempts=1, base_backoff_seconds=0),
+        max_attempts=1,
+        base_backoff_seconds=0,
+        sleep_fn=lambda _: None,
     )
 
     assert should_ack is False
     assert fake_use_case.calls == 1
 
 
-def test_lambda_handler_returns_batch_failure_for_retryable_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    import while_i_slept_api.summarizer_worker.lambda_handler as module
+def test_lambda_handler_returns_batch_failure_for_failed_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    import while_i_slept_api.article_pipeline.worker_handler as module
 
-    monkeypatch.setattr(module, "_get_use_case", lambda: _FakeUseCase(should_fail_retryable=True))
-    monkeypatch.setattr(module, "_RETRY_POLICY", RetryPolicy(max_attempts=1, base_backoff_seconds=0))
+    monkeypatch.setattr(module, "_get_use_case", lambda: _FakeUseCase(status="FAILED"))
 
     result = lambda_handler(
         {
@@ -120,14 +116,15 @@ def test_local_poll_once_deletes_message_on_success() -> None:
             }
         ]
     )
-    use_case = _FakeUseCase()
+    use_case = _FakeUseCase(status="DONE")
 
     poll_once(
         sqs_client=sqs,
         queue_url="https://example.com/queue",
         logger=StructuredLogger("tests.summary.local"),
         use_case=use_case,
-        retry_policy=RetryPolicy(max_attempts=1, base_backoff_seconds=0),
+        max_attempts=1,
+        base_backoff_seconds=0,
         wait_time_seconds=2,
         visibility_timeout_seconds=45,
         sleep_fn=lambda _: None,

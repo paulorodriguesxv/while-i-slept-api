@@ -13,7 +13,7 @@ from while_i_slept_api.article_pipeline.runtime import build_ingestion_use_case
 from while_i_slept_api.content.registry import FeedRegistry
 from while_i_slept_api.content.rss import RSSFetcher
 from while_i_slept_api.services.utils import iso_now
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.logging import StructuredLogger
 
 _ARTICLE_LOGGER = logging.getLogger(__name__)
 _LOGGER = StructuredLogger("while_i_slept.lambda.ingestion")

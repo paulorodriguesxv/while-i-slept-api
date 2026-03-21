@@ -10,7 +10,19 @@ from while_i_slept_api.article_pipeline.infrastructure.sqs_queue import SqsSumma
 from while_i_slept_api.article_pipeline.summarizers import NotImplementedSummarizer, SmartBrevitySummarizer
 from while_i_slept_api.article_pipeline.use_cases import IngestArticleUseCase, ProcessSummaryJobUseCase
 from while_i_slept_api.core.config import Settings, get_settings
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.logging import StructuredLogger
+
+
+def _resolve_articles_table_name() -> str:
+    return os.getenv("ARTICLES_TABLE_NAME") or os.getenv("DYNAMO_TABLE_NAME") or "articles"
+
+
+def _resolve_queue_name() -> str:
+    return os.getenv("SQS_QUEUE_NAME") or "summary-jobs"
+
+
+def _resolve_queue_url() -> str | None:
+    return os.getenv("SUMMARY_QUEUE_URL")
 
 
 def build_ingestion_use_case() -> IngestArticleUseCase:
@@ -19,9 +31,13 @@ def build_ingestion_use_case() -> IngestArticleUseCase:
     factory = AwsClientFactory()
     repository = DynamoArticleSummaryRepository.from_resource(
         factory.dynamodb_resource(),
-        table_name=os.getenv("DYNAMO_TABLE_NAME", "articles"),
+        table_name=_resolve_articles_table_name(),
     )
-    queue = SqsSummaryJobQueue(factory.sqs_client(), queue_name=os.getenv("SQS_QUEUE_NAME", "summary-jobs"))
+    queue = SqsSummaryJobQueue(
+        factory.sqs_client(),
+        queue_name=_resolve_queue_name(),
+        queue_url=_resolve_queue_url(),
+    )
     return IngestArticleUseCase(
         repository=repository,
         queue=queue,
@@ -36,17 +52,19 @@ def build_process_summary_use_case(settings: Settings | None = None) -> ProcessS
     cfg = settings or get_settings()
     repository = DynamoArticleSummaryRepository.from_resource(
         factory.dynamodb_resource(),
-        table_name=os.getenv("DYNAMO_TABLE_NAME", "articles"),
+        table_name=_resolve_articles_table_name(),
     )
+
+    logger = StructuredLogger("while_i_slept.summary_worker")
 
     summarizer_type = (cfg.summarizer_impl or "smart").lower()
     if summarizer_type == "smart":
-        summarizer = SmartBrevitySummarizer()
+        summarizer = SmartBrevitySummarizer(logger=logger)
     else:
-        summarizer = NotImplementedSummarizer()
+        summarizer = NotImplementedSummarizer(logger=logger)
 
     return ProcessSummaryJobUseCase(
         repository=repository,
         summarizer=summarizer,
-        logger=StructuredLogger("while_i_slept.summary_worker"),
+        logger=logger,
     )

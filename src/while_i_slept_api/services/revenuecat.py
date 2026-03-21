@@ -9,7 +9,7 @@ from typing import Any
 from while_i_slept_api.domain.models import EntitlementState
 from while_i_slept_api.repositories.base import UserRepository
 from while_i_slept_api.repositories.revenuecat_events import RevenueCatEventRepository
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.logging import StructuredLogger
 
 ACTIVATION_EVENTS = {
     "INITIAL_PURCHASE",

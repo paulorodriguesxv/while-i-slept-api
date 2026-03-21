@@ -59,9 +59,10 @@ def build_feed_repository() -> DynamoArticleSummaryRepository:
     """Build repository for feed and preferences queries."""
 
     factory = AwsClientFactory()
+    table_name = os.getenv("ARTICLES_TABLE_NAME") or os.getenv("DYNAMO_TABLE_NAME") or "articles"
     return DynamoArticleSummaryRepository.from_resource(
         factory.dynamodb_resource(),
-        table_name=os.getenv("DYNAMO_TABLE_NAME", "articles"),
+        table_name=table_name,
     )
 
 

@@ -62,7 +62,12 @@ class DynamoArticleSummaryRepository(ArticleSummaryRepository):
 
     @classmethod
     def from_resource(cls, resource: Any, table_name: str | None = None) -> "DynamoArticleSummaryRepository":
-        resolved_table_name = table_name or os.getenv("DYNAMO_TABLE_NAME", "articles")
+        resolved_table_name = (
+            table_name
+            or os.getenv("ARTICLES_TABLE_NAME")
+            or os.getenv("DYNAMO_TABLE_NAME")
+            or "articles"
+        )
         return cls(resource.Table(resolved_table_name))
 
     def put_raw_article_if_absent(self, article: RawArticle) -> bool:

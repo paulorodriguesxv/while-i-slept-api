@@ -1,29 +1,24 @@
-"""Local SQS consumer (single consolidated implementation)."""
+"""Local SQS consumer for article summary jobs."""
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
-import json
 import os
 import signal
 import time
 from typing import Any
 
-from while_i_slept_api.article_pipeline.dto import SummaryJob as ArticleSummaryJob
-from while_i_slept_api.article_pipeline.errors import SummaryJobValidationError
 from while_i_slept_api.article_pipeline.runtime import build_process_summary_use_case
+from while_i_slept_api.article_pipeline.worker_processing import process_sqs_record
 from while_i_slept_api.core.config import Settings, get_settings
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
-from while_i_slept_api.summarizer_worker.message_processing import process_sqs_record
-from while_i_slept_api.summarizer_worker.retry import RetryPolicy, execute_with_retries
-
+from while_i_slept_api.core.logging import StructuredLogger
 
 _DEFAULT_ONCE_MAX_EMPTY_POLLS = 2
 
 
 def run_forever(settings: Settings | None = None) -> None:
-    """Poll SQS forever and process one message at a time."""
+    """Poll SQS forever and process messages."""
 
     _run_consumer(
         settings=settings,
@@ -55,17 +50,11 @@ def _run_consumer(
     once: bool,
     max_empty_polls: int,
 ) -> None:
-    """Run consumer loop in continuous or finite mode."""
-
     cfg = settings or get_settings()
     running = {"value": True}
     consecutive_empty_polls = 0
-    logger = StructuredLogger("while_i_slept.summarizer.local_consumer")
-    use_case = build_process_summary_use_case()
-    retry_policy = RetryPolicy(
-        max_attempts=cfg.summary_worker_retry_attempts,
-        base_backoff_seconds=cfg.summary_worker_retry_backoff_seconds,
-    )
+    logger = StructuredLogger("while_i_slept.summary.local_consumer")
+    use_case = build_process_summary_use_case(cfg)
     sqs_client = _build_sqs_client(cfg)
     queue_url = _resolve_queue_url(cfg, sqs_client)
 
@@ -76,28 +65,34 @@ def _run_consumer(
     signal.signal(signal.SIGINT, _shutdown_handler)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, _shutdown_handler)
+
     logger.info(
         "summary_consumer.started",
         queue_url=queue_url,
         mode="once" if once else "forever",
         max_empty_polls=max_empty_polls if once else None,
     )
+
     while running["value"]:
         has_messages = poll_once(
             sqs_client=sqs_client,
             queue_url=queue_url,
             logger=logger,
             use_case=use_case,
-            retry_policy=retry_policy,
+            max_attempts=cfg.summary_worker_retry_attempts,
+            base_backoff_seconds=cfg.summary_worker_retry_backoff_seconds,
             wait_time_seconds=cfg.summary_worker_wait_time_seconds,
             visibility_timeout_seconds=cfg.summary_worker_visibility_timeout_seconds,
             max_number_of_messages=1,
         )
+
         if not once:
             continue
+
         if has_messages:
             consecutive_empty_polls = 0
             continue
+
         consecutive_empty_polls += 1
         logger.info(
             "summary_consumer.empty_poll",
@@ -107,6 +102,7 @@ def _run_consumer(
         if consecutive_empty_polls >= max_empty_polls:
             logger.info("summary_consumer.once_complete", max_empty_polls=max_empty_polls)
             break
+
     logger.info("summary_consumer.stopped")
 
 
@@ -116,7 +112,8 @@ def poll_once(
     queue_url: str,
     logger: StructuredLogger,
     use_case: Any,
-    retry_policy: RetryPolicy,
+    max_attempts: int,
+    base_backoff_seconds: float,
     wait_time_seconds: int,
     visibility_timeout_seconds: int,
     max_number_of_messages: int = 1,
@@ -150,23 +147,47 @@ def poll_once(
                 except ValueError:
                     receive_count = None
 
-        should_ack = _process_record(
+        should_ack = process_sqs_record(
             record_body=body,
             message_id=message_id,
             receive_count=receive_count,
             use_case=use_case,
             logger=logger,
-            retry_policy=retry_policy,
+            max_attempts=max_attempts,
+            base_backoff_seconds=base_backoff_seconds,
+            sleep_fn=sleep_fn,
         )
+
         if should_ack and receipt_handle:
             sqs_client.delete_message(QueueUrl=queue_url, ReceiptHandle=receipt_handle)
+
     return True
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse local consumer CLI arguments."""
+def _build_sqs_client(settings: Settings) -> Any:
+    import boto3
 
-    parser = argparse.ArgumentParser(description="Local SQS consumer for summary jobs.")
+    return boto3.client("sqs", region_name=settings.aws_region)
+
+
+def _resolve_queue_url(settings: Settings, sqs_client: Any) -> str:
+    if settings.summary_jobs_queue_url:
+        return settings.summary_jobs_queue_url
+
+    summary_queue_url = os.getenv("SUMMARY_QUEUE_URL")
+    if summary_queue_url:
+        return summary_queue_url
+
+    queue_name = os.getenv("SQS_QUEUE_NAME")
+    if not queue_name:
+        raise ValueError("Set APP_SUMMARY_JOBS_QUEUE_URL, SUMMARY_QUEUE_URL, or SQS_QUEUE_NAME.")
+
+    response = sqs_client.get_queue_url(QueueName=queue_name)
+    return str(response["QueueUrl"])
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Local SQS consumer for article summary jobs.")
     parser.add_argument("--once", action="store_true", help="Exit after consecutive empty polls.")
     parser.add_argument(
         "--max-empty-polls",
@@ -181,127 +202,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """CLI entrypoint for local consumer."""
-
     args = _parse_args(argv)
     if args.once:
         run_once(max_empty_polls=args.max_empty_polls)
         return
     run_forever()
-
-
-def _process_record(
-    *,
-    record_body: str,
-    message_id: str,
-    receive_count: int | None,
-    use_case: Any,
-    logger: StructuredLogger,
-    retry_policy: RetryPolicy,
-) -> bool:
-    """Process one record and return whether it should be acknowledged."""
-
-    try:
-        payload = json.loads(record_body)
-    except json.JSONDecodeError:
-        logger.warning(
-            "summary_consumer.invalid_json",
-            message_id=message_id,
-            receive_count=receive_count,
-        )
-        return True
-
-    if isinstance(payload, dict) and payload.get("version") == 1:
-        return _process_article_job(
-            payload=payload,
-            message_id=message_id,
-            receive_count=receive_count,
-            use_case=use_case,
-            logger=logger,
-            retry_policy=retry_policy,
-        )
-
-    # Backward-compatible path for legacy summarizer worker payloads.
-    return process_sqs_record(
-        record_body=record_body,
-        message_id=message_id,
-        receive_count=receive_count,
-        use_case=use_case,
-        logger=logger,
-        retry_policy=retry_policy,
-    )
-
-
-def _process_article_job(
-    *,
-    payload: dict[str, Any],
-    message_id: str,
-    receive_count: int | None,
-    use_case: Any,
-    logger: StructuredLogger,
-    retry_policy: RetryPolicy,
-) -> bool:
-    """Process v1 article summary job."""
-
-    try:
-        job = ArticleSummaryJob.from_payload(payload)
-    except SummaryJobValidationError:
-        logger.warning(
-            "summary_consumer.invalid_job_payload",
-            message_id=message_id,
-            receive_count=receive_count,
-        )
-        return True
-
-    try:
-        result = execute_with_retries(
-            lambda: use_case.process_summary_job(job),
-            policy=retry_policy,
-        )
-    except Exception as exc:
-        logger.exception(
-            "summary_consumer.job_failed",
-            message_id=message_id,
-            receive_count=receive_count,
-            content_hash=job.content_hash,
-            summary_version=job.summary_version,
-            error=exc.__class__.__name__,
-        )
-        return False
-
-    logger.info(
-        "summary_consumer.job_processed",
-        message_id=message_id,
-        receive_count=receive_count,
-        content_hash=job.content_hash,
-        summary_version=job.summary_version,
-        status=getattr(result, "status", "UNKNOWN"),
-    )
-    return True
-
-
-def _build_sqs_client(settings: Settings) -> Any:
-    """Create SQS client for AWS or LocalStack."""
-
-    import boto3
-
-    return boto3.client(
-        "sqs",
-        region_name=settings.aws_region,
-        endpoint_url=settings.sqs_endpoint_url or settings.aws_endpoint_url or os.getenv("AWS_ENDPOINT_URL"),
-    )
-
-
-def _resolve_queue_url(settings: Settings, sqs_client: Any) -> str:
-    """Resolve queue URL from settings or queue name."""
-
-    if settings.summary_jobs_queue_url:
-        return settings.summary_jobs_queue_url
-    queue_name = os.getenv("SQS_QUEUE_NAME")
-    if not queue_name:
-        raise ValueError("Set APP_SUMMARY_JOBS_QUEUE_URL or SQS_QUEUE_NAME.")
-    response = sqs_client.get_queue_url(QueueName=queue_name)
-    return str(response["QueueUrl"])
 
 
 if __name__ == "__main__":

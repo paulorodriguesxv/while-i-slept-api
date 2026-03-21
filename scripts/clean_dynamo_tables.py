@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 
 import boto3
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+
+from while_i_slept_api.core.logging import StructuredLogger
 
 _LOGGER = StructuredLogger("while_i_slept.clean_dynamo_tables")
 

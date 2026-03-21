@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from while_i_slept_api.article_pipeline.dto import SummaryJob
 from while_i_slept_api.article_pipeline.models import RawArticle, SummaryOutput, SummaryState
 from while_i_slept_api.article_pipeline.use_cases import IngestArticleUseCase
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.logging import StructuredLogger
 
 
 @dataclass

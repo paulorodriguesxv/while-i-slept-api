@@ -8,7 +8,7 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError
-from while_i_slept_api.summarizer_worker.logging import StructuredLogger
+from while_i_slept_api.core.logging import StructuredLogger
 
 _LOGGER = StructuredLogger("while_i_slept.create_tables")
 

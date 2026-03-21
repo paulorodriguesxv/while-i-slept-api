@@ -83,7 +83,7 @@ test: infra-up
 coverage: ##@coverage Run tests with coverage
 coverage: infra-up
 	docker compose build tests
-	docker compose run --rm tests sh -lc "python scripts/create_tables.py && pytest -q --cov=while_i_slept_api.services --cov=while_i_slept_api.repositories.memory --cov=while_i_slept_api.article_pipeline --cov=while_i_slept_api.summarizer_worker --cov-report=term-missing --cov-report=html:htmlcov"
+	docker compose run --rm tests sh -lc "python scripts/create_tables.py && pytest -q --cov=while_i_slept_api.services --cov=while_i_slept_api.repositories.memory --cov=while_i_slept_api.article_pipeline --cov-report=term-missing --cov-report=html:htmlcov"
 
 .PHONY: shell
 shell: ##@shell Open a shell in the API container
@@ -98,8 +98,8 @@ create-table: ##@create-table Create DynamoDB table
 	docker compose run --rm api sh -lc "python scripts/create_table.py"
 
 .PHONY: local-worker
-local-worker: ##@local-worker Run local summarizer worker
-	docker compose run --rm api sh -lc "python -m while_i_slept_api.summarizer_worker.local_consumer"
+local-worker: ##@local-worker Run local summary worker
+	docker compose run --rm api sh -lc "python -m while_i_slept_api.article_pipeline.local_consumer"
 
 .PHONY: local-fetch
 local-fetch: ##@local-fetch Fetch RSS feeds
@@ -151,8 +151,8 @@ clean-dynamo-tables: infra-up
 	docker compose run --rm api sh -lc "python scripts/create_table.py"
 
 .PHONY: local-worker-once
-local-worker-once: ##@local-worker-once Run local summarizer worker in finite once mode
-	docker compose run --rm api sh -lc "python -m while_i_slept_api.summarizer_worker.local_consumer --once"
+local-worker-once: ##@local-worker-once Run local summary worker in finite once mode
+	docker compose run --rm api sh -lc "python -m while_i_slept_api.article_pipeline.local_consumer --once"
 
 .PHONY: summary-pipeline-worker
 summary-pipeline-worker: ##@summary-pipeline-worker Run the local worker for the summary pipeline in once mode
