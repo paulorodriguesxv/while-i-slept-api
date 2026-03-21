@@ -33,11 +33,19 @@ def build_ingestion_use_case() -> IngestArticleUseCase:
         factory.dynamodb_resource(),
         table_name=_resolve_articles_table_name(),
     )
-    queue = SqsSummaryJobQueue(
-        factory.sqs_client(),
-        queue_name=_resolve_queue_name(),
-        queue_url=_resolve_queue_url(),
-    )
+    queue_name = _resolve_queue_name()
+    queue_url = _resolve_queue_url()
+    if queue_url:
+        queue = SqsSummaryJobQueue(
+            factory.sqs_client(),
+            queue_name=queue_name,
+            queue_url=queue_url,
+        )
+    else:
+        queue = SqsSummaryJobQueue(
+            factory.sqs_client(),
+            queue_name=queue_name,
+        )
     return IngestArticleUseCase(
         repository=repository,
         queue=queue,

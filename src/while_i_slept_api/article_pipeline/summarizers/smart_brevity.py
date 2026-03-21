@@ -197,14 +197,14 @@ _LANGUAGE_PROFILES: dict[str, _LanguageProfile] = {
 class SmartBrevitySummarizer:
     """Deterministic summarizer using Smart Brevity formatting rules."""
 
-    def __init__(self, logger: StructuredLogger) -> None:
-        self._logger = logger
+    def __init__(self, logger: StructuredLogger | None = None) -> None:
+        self._logger = logger or StructuredLogger("while_i_slept.summary.smart_brevity")
 
     def summarize(self, article: RawArticle, job: SummaryJob) -> SummaryOutput:
         self._logger.info(
             "summarizer.summarize_start",
-            content_hash=job.content_hash,
-            summary_version=job.summary_version,
+            content_hash=getattr(job, "content_hash", None),
+            summary_version=getattr(job, "summary_version", None),
         )
 
         language = _resolve_language(getattr(job, "language", "en"))

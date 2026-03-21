@@ -9,8 +9,8 @@ from while_i_slept_api.article_pipeline.models import RawArticle, SummaryOutput
 
 class NotImplementedSummarizer:
     """Placeholder summarizer for local/dev until LLM integration exists."""
-    def __init__(self, logger: StructuredLogger) -> None:
-        self._logger = logger
+    def __init__(self, logger: StructuredLogger | None = None) -> None:
+        self._logger = logger or StructuredLogger("while_i_slept.summary.not_implemented")
 
     def summarize(self, article: RawArticle, job: SummaryJob) -> SummaryOutput:
         raise NotImplementedError(
@@ -18,4 +18,3 @@ class NotImplementedSummarizer:
             f"Cannot summarize content_hash={article.content_hash} "
             f"for summary_version={job.summary_version}."
         )
-
